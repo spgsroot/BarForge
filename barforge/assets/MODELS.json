@@ -1,0 +1,43 @@
+{
+  "format": "barforge-local-censor-models",
+  "version": 1,
+  "models": [
+    {
+      "file": "anime-censor-v1-s.onnx",
+      "bytes": 44586353,
+      "sha256": "2c2524824d7d320c5619a0a73702a2e2186f619067c823d211e94f7cfe489cba",
+      "source": "https://huggingface.co/deepghs/anime_censor_detection/tree/0cf62fd6b28213b40ae0c0055f92e7ae6a96bdc2/censor_detect_v1.0_s",
+      "model_card": "https://huggingface.co/deepghs/anime_censor_detection",
+      "publisher_license": "MIT",
+      "labels": ["nipple_f", "penis", "pussy"]
+    },
+    {
+      "file": "erax-anti-nsfw-v11.onnx",
+      "bytes": 80389866,
+      "sha256": "096c429d1741d110efd9867a4a0c923599aa270f73796eabdc4c0388a17e45b3",
+      "source": "https://huggingface.co/erax-ai/EraX-Anti-NSFW-V1.1/tree/90878ab981060833413ae1a24df72f5e1fff66bc",
+      "source_file": "erax-anti-nsfw-yolo11m-v1.1.pt",
+      "model_card": "https://huggingface.co/erax-ai/EraX-Anti-NSFW-V1.1",
+      "publisher_license": "Apache-2.0",
+      "export_metadata_license": "AGPL-3.0 (inserted by Ultralytics exporter)",
+      "export": {"tool": "ultralytics", "version": "8.4.190", "format": "onnx", "opset": 17, "imgsz": 640, "dynamic": false, "simplify": false},
+      "labels": ["anus", "make_love", "nipple", "penis", "vagina"],
+      "redistribution_note": "Review the publisher terms and Ultralytics exporter/model licensing before redistributing these weights. Publisher model-card and ONNX metadata license declarations differ."
+    },
+    {
+      "file": "RealESRGAN_x4plus_anime_6B.onnx",
+      "bytes": 17937961,
+      "sha256": "b71eef184721caa46752eb94974fff40144543b8ceffc376f5f020fa339e9443",
+      "source": "https://github.com/xinntao/Real-ESRGAN/releases/download/v0.2.2.4/RealESRGAN_x4plus_anime_6B.pth",
+      "source_sha256": "f872d837d3c90ed2e05227bed711af5671a6fd1c9f7d7e91c911a61f155e99da",
+      "model_card": "https://github.com/xinntao/Real-ESRGAN/blob/master/docs/anime_model.md",
+      "publisher_license": "BSD-3-Clause",
+      "license_file": "REALESRGAN-LICENSE.txt",
+      "scale": 4,
+      "architecture": "RRDBNet: 6 RRDB blocks, 64 features, 32 growth channels, params_ema",
+      "export": {"tool": "torch.onnx.export", "torch": "2.15.0+cpu", "opset": 17, "dynamic_hw": true},
+      "runtime": "ONNX Runtime CPU; 128px tiles, 48px overlap, 10px right/bottom reflect pre-pad",
+      "validation": {"input_hw": [37, 53], "output_hw": [148, 212], "max_abs_error_vs_pytorch": 7.748603820800781e-7}
+    }
+  ]
+}

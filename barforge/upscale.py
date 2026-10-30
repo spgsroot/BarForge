@@ -20,6 +20,7 @@ from typing import Callable
 import cv2
 import numpy as np
 from PIL import Image
+from .i18n import tr
 
 MODEL_NAME = "RealESRGAN_x4plus_anime_6B"
 SCALE = 4
@@ -71,7 +72,7 @@ class RealESRGAN:
         with self._lock:
             if self._session is None:
                 if not self.model_path.is_file():
-                    raise RuntimeError(f"Модель {MODEL_NAME} не найдена: {self.model_path}")
+                    raise RuntimeError(tr("Модель {MODEL_NAME} не найдена: {model_path}", MODEL_NAME=MODEL_NAME, model_path=self.model_path))
                 try:
                     import onnxruntime as ort
                     options = ort.SessionOptions()
@@ -80,11 +81,11 @@ class RealESRGAN:
                     session = ort.InferenceSession(str(self.model_path), sess_options=options,
                                                    providers=["CPUExecutionProvider"])
                 except Exception as exc:
-                    raise RuntimeError(f"Не удалось загрузить {MODEL_NAME}: {exc}") from exc
+                    raise RuntimeError(tr("Не удалось загрузить {MODEL_NAME}: {exc}", MODEL_NAME=MODEL_NAME, exc=exc)) from exc
                 inputs = session.get_inputs()
                 outputs = session.get_outputs()
                 if len(inputs) != 1 or len(outputs) != 1:
-                    raise RuntimeError(f"Некорректный интерфейс модели {MODEL_NAME}")
+                    raise RuntimeError(tr("Некорректный интерфейс модели {MODEL_NAME}", MODEL_NAME=MODEL_NAME))
                 self._session = session
             return self._session
 
@@ -97,7 +98,7 @@ class RealESRGAN:
                         for chunk in iter(lambda: handle.read(1024*1024), b""):
                             digest.update(chunk)
                 except OSError as exc:
-                    raise RuntimeError(f"Не удалось прочитать модель {MODEL_NAME}: {exc}") from exc
+                    raise RuntimeError(tr("Не удалось прочитать модель {MODEL_NAME}: {exc}", MODEL_NAME=MODEL_NAME, exc=exc)) from exc
                 self._fingerprint = digest.hexdigest()
             return self._fingerprint
 
@@ -169,11 +170,10 @@ class RealESRGAN:
                 cancelled: Cancelled | None = None) -> Image.Image:
         """Return an exact-pixel-cached x4 image, computing only cache misses."""
         if image.width < 1 or image.height < 1:
-            raise ValueError("Изображение для апскейла пустое")
+            raise ValueError(tr("Изображение для апскейла пустое"))
         if image.width * image.height * SCALE * SCALE > MAX_OUTPUT_PIXELS:
             raise ValueError(
-                f"Кроп слишком велик для x4: {image.width*SCALE}×{image.height*SCALE}. "
-                f"Уменьшите его до {MAX_OUTPUT_PIXELS:,} выходных пикселей или меньше.".replace(",", " ")
+                tr("Кроп слишком велик для x4: {value}×{value2}. Уменьшите его до {MAX_OUTPUT_PIXELS:,} выходных пикселей или меньше.", value=image.width*SCALE, value2=image.height*SCALE, MAX_OUTPUT_PIXELS=MAX_OUTPUT_PIXELS).replace(",", " ")
             )
         if cancelled is not None and cancelled():
             raise UpscaleCancelled()
@@ -253,7 +253,7 @@ def upscale_pair(clean: Image.Image, censored: Image.Image, *, engine: RealESRGA
     """Upscale both sides independently with identical geometry and progress/cancellation semantics."""
     upscaler = engine if engine is not None else shared_upscaler()
     if clean.size != censored.size:
-        raise ValueError("Стороны пары имеют разные размеры")
+        raise ValueError(tr("Стороны пары имеют разные размеры"))
     result = []
     for index, (name, image) in enumerate((("clean", clean), ("censored", censored))):
         if cancelled is not None and cancelled():

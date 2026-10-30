@@ -8,6 +8,7 @@ from PySide6.QtWidgets import (
     QAbstractScrollArea, QAbstractSlider, QHBoxLayout, QLabel, QPlainTextEdit,
     QSizePolicy, QToolButton, QVBoxLayout, QWidget,
 )
+from .i18n import tr
 
 
 def fit_window(window: QWidget, preferred: tuple[int, int] | None = None) -> None:
@@ -58,10 +59,10 @@ class PageNavigation(QWidget):
         row.setContentsMargins(0, 0, 0, 0)
         self.previous_button = QToolButton()
         self.previous_button.setText("←")
-        self.previous_button.setToolTip("Предыдущая страница")
+        self.previous_button.setToolTip(tr("Предыдущая страница"))
         self.next_button = QToolButton()
         self.next_button.setText("→")
-        self.next_button.setToolTip("Следующая страница")
+        self.next_button.setToolTip(tr("Следующая страница"))
         self.page_label = QLabel()
         self.page_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
         row.addWidget(self.previous_button)
@@ -92,7 +93,7 @@ class PageNavigation(QWidget):
         self.next_button.setEnabled(value < high)
         pages = max(1, math.ceil((high - low) / step) + 1)
         current = pages if value == high else min(pages, (value - low) // step + 1)
-        self.page_label.setText(f"Страница {current} / {pages}")
+        self.page_label.setText(tr("Страница {current} / {pages}", current=current, pages=pages))
 
     def eventFilter(self, watched, event) -> bool:
         if event.type() == QEvent.Type.Resize:

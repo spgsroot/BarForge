@@ -60,6 +60,7 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
+from .i18n import tr
 from .ui import PageNavigation, fit_window
 
 from .grok import (
@@ -78,9 +79,9 @@ from .grok import (
 from .xai_oauth import CLIENT_ID, DeviceCode, OAuthCancelled, OAuthError, OAuthManager, validate_verification_url
 
 _TASKS = (
-    ("caption", "Улучшить капшен", "Grok перепишет капшен как точную инструкцию для редактирующей модели."),
-    ("bars", "Предложить полосы", "Grok предложит области, которые обычно закрывают полосами."),
-    ("scene", "Описать сцену", "Краткое нейтральное описание сцены и видимой анатомии (только для чтения)."),
+    ("caption", tr("Улучшить капшен"), tr("Grok перепишет капшен как точную инструкцию для редактирующей модели.")),
+    ("bars", tr("Предложить полосы"), tr("Grok предложит области, которые обычно закрывают полосами.")),
+    ("scene", tr("Описать сцену"), tr("Краткое нейтральное описание сцены и видимой анатомии (только для чтения).")),
 )
 
 
@@ -198,12 +199,12 @@ class GrokController(QObject):
     @property
     def status_text(self) -> str:
         if not self._settings.enabled:
-            return "Grok выключен."
+            return tr("Grok выключен.")
         if self._auth is not None:
-            return "Идёт выход из xAI." if self._auth.kind == "logout" else "Идёт вход через xAI OAuth."
+            return tr("Идёт выход из xAI.") if self._auth.kind == "logout" else tr("Идёт вход через xAI OAuth.")
         if not self.oauth.has_session:
-            return f"Grok включён. {self.oauth.status_text}"
-        return f"Grok готов (модель {self._settings.model})."
+            return tr("Grok включён. {value}", value=self.oauth.status_text)
+        return tr("Grok готов (модель {value}).", value=self._settings.model)
 
     @property
     def auth(self) -> AuthState:
@@ -308,13 +309,13 @@ class GrokController(QObject):
         sign-in makes ``oauth.has_session`` (and so ``available``) true.
         """
         if self._auth is not None and self._auth.kind == "login":
-            raise GrokError("Вход уже выполняется.")
+            raise GrokError(tr("Вход уже выполняется."))
         if self.oauth.has_session:  # a sign-out may still be revoking an earlier session: no obstacle once it is gone
             raise GrokError(
-                "Выход ещё выполняется." if self._auth is not None else "Вход уже выполнен: сначала нажмите «Выйти»."
+                tr("Выход ещё выполняется.") if self._auth is not None else tr("Вход уже выполнен: сначала нажмите «Выйти».")
             )
         if persist and not self.oauth.store.secure_available:
-            raise GrokError("Защищённое хранилище ОС недоступно: войдите с хранением только на время сессии.")
+            raise GrokError(tr("Защищённое хранилище ОС недоступно: войдите с хранением только на время сессии."))
         self.cancel_all()  # requests of an earlier identity must not finish into the new one
         self._begin(_AuthJob("login", persist))
 
@@ -325,7 +326,7 @@ class GrokController(QObject):
             return
         job.stop.set()
         self._auth, self._device = None, None
-        self._notice, self._notice_failed = "Вход отменён.", False
+        self._notice, self._notice_failed = tr("Вход отменён."), False
         self.auth_changed.emit()
 
     def logout(self) -> None:
@@ -344,7 +345,7 @@ class GrokController(QObject):
             return False
         try:  # xai_oauth accepts only https pages of xAI's own hosts; nothing else is ever handed to the OS
             opened = QDesktopServices.openUrl(QUrl(validate_verification_url(device.verification_uri_complete)))
-            notice = "Не удалось открыть браузер: откройте адрес вручную и введите код."
+            notice = tr("Не удалось открыть браузер: откройте адрес вручную и введите код.")
         except OAuthError as exc:
             opened, notice = False, exc.message
         self._notice, self._notice_failed = ("", False) if opened else (notice, True)
@@ -379,8 +380,8 @@ class GrokController(QObject):
         except OAuthError as exc:
             job.error = exc.message
         except Exception as exc:  # a bug must surface as a message, not vanish in the worker thread
-            what = "входе в" if job.kind == "login" else "выходе из"
-            job.error = f"Непредвиденная ошибка при {what} xAI ({type(exc).__name__})."
+            what = tr("входе в") if job.kind == "login" else tr("выходе из")
+            job.error = tr("Непредвиденная ошибка при {what} xAI ({value}).", what=what, value=type(exc).__name__)
         with contextlib.suppress(RuntimeError):
             self._auth_done.emit(job)
 
@@ -404,13 +405,13 @@ class GrokController(QObject):
         """(notice, failed) for a finished sign-in/sign-out, judged by what the manager really holds."""
         if job.kind == "login":
             if job.signed_in:
-                return "Вход выполнен.", False
-            return (job.error, True) if job.error else ("Вход отменён.", False)
+                return tr("Вход выполнен."), False
+            return (job.error, True) if job.error else (tr("Вход отменён."), False)
         if self.oauth.has_session:
-            return " ".join(part for part in ("Не удалось выйти из xAI.", job.error) if part), True
+            return " ".join(part for part in (tr("Не удалось выйти из xAI."), job.error) if part), True
         if job.error:  # the manager already forgot the session; the message tells what else did not work out
             return job.error, True
-        return "Вы вышли из xAI: сохранённый вход удалён.", False
+        return tr("Вы вышли из xAI: сохранённый вход удалён."), False
 
     def _refresh_availability(self) -> None:
         available = self.available
@@ -433,28 +434,23 @@ class GrokController(QObject):
     def _explain_unavailable(self, parent: QWidget | None) -> None:
         box = QMessageBox(
             QMessageBox.Icon.Information,
-            "Grok недоступен",
-            f"{self.status_text}\n\nВключите помощника и войдите через xAI OAuth в настройках Grok.",
+            tr("Grok недоступен"),
+            tr("{status_text}\n\nВключите помощника и войдите через xAI OAuth в настройках Grok.", status_text=self.status_text),
             QMessageBox.StandardButton.NoButton,
             parent,
         )
-        settings = box.addButton("Настройки…", QMessageBox.ButtonRole.AcceptRole)
-        box.addButton("Закрыть", QMessageBox.ButtonRole.RejectRole)
+        settings = box.addButton(tr("Настройки…"), QMessageBox.ButtonRole.AcceptRole)
+        box.addButton(tr("Закрыть"), QMessageBox.ButtonRole.RejectRole)
         box.exec()
         if box.clickedButton() == settings:
             self.settings_dialog(parent)
 
 
 _CLIENT_DISCLOSURE = (
-    "Вход идёт по протоколу Device Authorization через публичный OAuth-клиент Grok CLI (agent, "
-    f"client_id {CLIENT_ID}), который xAI выпустила для своего CLI и которым пользуются сторонние оболочки; "
-    "это не собственная регистрация BarForge, и на странице xAI будет указан Grok CLI. Доступ определяется "
-    "вашим аккаунтом и тарифом: даже после успешного входа xAI может ответить 403, а ключ API программа не "
-    "подставляет. Пароль xAI программа не видит, cookies браузера не читает."
+    tr("Вход идёт по протоколу Device Authorization через публичный OAuth-клиент Grok CLI (agent, client_id {CLIENT_ID}), который xAI выпустила для своего CLI и которым пользуются сторонние оболочки; это не собственная регистрация BarForge, и на странице xAI будет указан Grok CLI. Доступ определяется вашим аккаунтом и тарифом: даже после успешного входа xAI может ответить 403, а ключ API программа не подставляет. Пароль xAI программа не видит, cookies браузера не читает.", CLIENT_ID=CLIENT_ID)
 )
 _STORAGE_HINT = (
-    "Токены доступа и обновления хранятся только в защищённом хранилище ОС или в памяти программы; в настройках на "
-    "диске остаются лишь флажок и название модели. Вход и выход действуют сразу, без «Сохранить»."
+    tr("Токены доступа и обновления хранятся только в защищённом хранилище ОС или в памяти программы; в настройках на диске остаются лишь флажок и название модели. Вход и выход действуют сразу, без «Сохранить».")
 )
 
 
@@ -471,18 +467,18 @@ class GrokSettingsDialog(QDialog):
         self._controller = controller
         store = controller.oauth.store
         self._phase = controller.auth.phase
-        self.setWindowTitle("Настройки Grok (xAI)")
+        self.setWindowTitle(tr("Настройки Grok (xAI)"))
         self.setMinimumWidth(600)
 
-        self.enabled_check = QCheckBox("Включить помощника Grok (xAI)")
+        self.enabled_check = QCheckBox(tr("Включить помощника Grok (xAI)"))
         self.enabled_check.setChecked(controller.settings.enabled)
 
         self.model_edit = QLineEdit(controller.settings.model)
         self.model_edit.setPlaceholderText(DEFAULT_MODEL)
-        reset = QPushButton("По умолчанию")
+        reset = QPushButton(tr("По умолчанию"))
         reset.clicked.connect(lambda: self.model_edit.setText(DEFAULT_MODEL))
         model_row = QHBoxLayout()
-        model_row.addWidget(QLabel("Модель:"))
+        model_row.addWidget(QLabel(tr("Модель:")))
         model_row.addWidget(self.model_edit, 1)
         model_row.addWidget(reset)
 
@@ -492,16 +488,16 @@ class GrokSettingsDialog(QDialog):
         self.auth_notice = QLabel()
         self.auth_notice.setWordWrap(True)
         self.auth_notice.setTextFormat(Qt.TextFormat.PlainText)
-        self.to_keyring = QRadioButton("Защищённое хранилище ОС")
-        self.to_session = QRadioButton("Только до закрытия программы")
-        self.to_keyring.setToolTip("Сохранить OAuth-вход между запусками в защищённом хранилище ОС.")
-        self.to_session.setToolTip("Токены только в памяти: после закрытия программы потребуется войти заново.")
+        self.to_keyring = QRadioButton(tr("Защищённое хранилище ОС"))
+        self.to_session = QRadioButton(tr("Только до закрытия программы"))
+        self.to_keyring.setToolTip(tr("Сохранить OAuth-вход между запусками в защищённом хранилище ОС."))
+        self.to_session.setToolTip(tr("Токены только в памяти: после закрытия программы потребуется войти заново."))
         (self.to_keyring if store.secure_available else self.to_session).setChecked(True)
-        self.login_button = QPushButton("Войти через xAI OAuth")
+        self.login_button = QPushButton(tr("Войти через xAI OAuth"))
         self.login_button.clicked.connect(self._login)
-        self.logout_button = QPushButton("Выйти")
+        self.logout_button = QPushButton(tr("Выйти"))
         self.logout_button.clicked.connect(self._logout)
-        self.cancel_login_button = QPushButton("Отменить вход")
+        self.cancel_login_button = QPushButton(tr("Отменить вход"))
         self.cancel_login_button.clicked.connect(self._cancel_login)
         self.auth_progress = QProgressBar()
         self.auth_progress.setRange(0, 0)
@@ -520,12 +516,12 @@ class GrokSettingsDialog(QDialog):
             "font-family: Consolas, 'Courier New', monospace; font-size: 26px; font-weight: bold;"
         )
         self.countdown = _hint("")
-        self.copy_code_button = QPushButton("Копировать код")
+        self.copy_code_button = QPushButton(tr("Копировать код"))
         self.copy_code_button.clicked.connect(self._copy_code)
-        self.open_page_button = QPushButton("Открыть страницу входа")
+        self.open_page_button = QPushButton(tr("Открыть страницу входа"))
         self.open_page_button.clicked.connect(self._open_page)
         open_hint = QLabel(
-            "Подтвердите вход на странице xAI. При необходимости введите код:"
+            tr("Подтвердите вход на странице xAI. При необходимости введите код:")
         )
         open_hint.setWordWrap(True)
         code_row = QHBoxLayout()
@@ -539,7 +535,7 @@ class GrokSettingsDialog(QDialog):
         panel.addWidget(self.url_label)
         panel.addWidget(self.code_label)
         panel.addLayout(code_row)
-        panel.addWidget(_hint("Сверьте код на странице xAI с кодом в этом окне."))
+        panel.addWidget(_hint(tr("Сверьте код на странице xAI с кодом в этом окне.")))
         panel.addWidget(self.countdown)
 
         account = QWidget()
@@ -548,7 +544,7 @@ class GrokSettingsDialog(QDialog):
         account_layout.setSpacing(6)
         account_layout.addWidget(self.auth_status)
         account_layout.addWidget(self.auth_notice)
-        account_layout.addWidget(_hint("Клиент: Grok CLI, не собственная регистрация BarForge. Подробнее — «О клиенте»."))
+        account_layout.addWidget(_hint(tr("Клиент: Grok CLI, не собственная регистрация BarForge. Подробнее — «О клиенте».")))
         storage_row = QHBoxLayout()
         storage_row.addWidget(self.to_keyring)
         storage_row.addWidget(self.to_session)
@@ -566,23 +562,22 @@ class GrokSettingsDialog(QDialog):
         details_layout = QVBoxLayout(details)
         details_layout.addWidget(_hint(_CLIENT_DISCLOSURE))
         details_layout.addWidget(_hint(_STORAGE_HINT))
-        details_layout.addWidget(_hint("Модель должна поддерживать изображения и структурированный вывод: docs.x.ai/developers/models"))
+        details_layout.addWidget(_hint(tr("Модель должна поддерживать изображения и структурированный вывод: docs.x.ai/developers/models")))
         details_layout.addStretch(1)
         self.settings_tabs = QTabWidget()
-        self.settings_tabs.addTab(account, "Вход")
-        self.settings_tabs.addTab(details, "О клиенте")
+        self.settings_tabs.addTab(account, tr("Вход"))
+        self.settings_tabs.addTab(details, tr("О клиенте"))
 
         buttons = QDialogButtonBox(QDialogButtonBox.StandardButton.Save | QDialogButtonBox.StandardButton.Cancel)
         self.save_button = buttons.button(QDialogButtonBox.StandardButton.Save)
-        self.save_button.setText("Сохранить")
-        buttons.button(QDialogButtonBox.StandardButton.Cancel).setText("Отмена")
+        self.save_button.setText(tr("Сохранить"))
+        buttons.button(QDialogButtonBox.StandardButton.Cancel).setText(tr("Отмена"))
         buttons.accepted.connect(self._save)
         buttons.rejected.connect(self.reject)
 
         layout = QVBoxLayout(self)
         layout.addWidget(self.enabled_check)
-        self.enabled_check.setToolTip("Изображение отправляется только кнопкой «Отправить в Grok». "
-                                     "На диске сохраняются лишь включение интеграции и название модели.")
+        self.enabled_check.setToolTip(tr("Изображение отправляется только кнопкой «Отправить в Grok». На диске сохраняются лишь включение интеграции и название модели."))
         layout.addLayout(model_row)
         layout.addWidget(self.settings_tabs, 1)
         layout.addWidget(buttons)
@@ -619,20 +614,19 @@ class GrokSettingsDialog(QDialog):
         pending = state.phase in ("requesting", "waiting")
         signed_in = oauth.has_session
         if state.phase == "requesting":
-            lines = ["Запрашиваем код входа у xAI…"]
+            lines = [tr("Запрашиваем код входа у xAI…")]
         elif state.phase == "waiting":
-            lines = ["Ждём подтверждения на странице xAI. Вход ещё не выполнен."]
+            lines = [tr("Ждём подтверждения на странице xAI. Вход ещё не выполнен.")]
         elif state.phase == "signing_out":
-            lines = ["Выходим из xAI…"]
+            lines = [tr("Выходим из xAI…")]
         else:
             lines = [oauth.status_text]
             if signed_in and not controller.settings.enabled:
-                lines.append("Помощник пока выключен: отметьте «Включить помощника Grok» и нажмите «Сохранить».")
+                lines.append(tr("Помощник пока выключен: отметьте «Включить помощника Grok» и нажмите «Сохранить»."))
             if not signed_in and not store.secure_available:
                 reason = f" ({store.secure_problem})" if store.secure_problem else ""
                 lines.append(
-                    f"Защищённое хранилище ОС недоступно{reason}: вход можно держать только в памяти на время "
-                    "сессии; токены на диск не записываются."
+                    tr("Защищённое хранилище ОС недоступно{reason}: вход можно держать только в памяти на время сессии; токены на диск не записываются.", reason=reason)
                 )
         self.auth_status.setText("\n".join(lines))
         self.auth_notice.setText(state.notice)
@@ -650,7 +644,7 @@ class GrokSettingsDialog(QDialog):
         self.auth_progress.setVisible(not idle)
         self.code_panel.setVisible(state.phase == "waiting")
         self.save_button.setEnabled(not pending)
-        self.save_button.setToolTip("Сначала завершите или отмените вход." if pending else "")
+        self.save_button.setToolTip(tr("Сначала завершите или отмените вход.") if pending else "")
         if state.phase == "waiting":
             self.url_label.setText(state.verification_uri)
             self.code_label.setText(state.user_code)
@@ -671,16 +665,16 @@ class GrokSettingsDialog(QDialog):
     def _tick(self) -> None:
         left = int(self._controller.auth.expires_at - time.time())
         self.countdown.setText(
-            f"Код действует ещё {left // 60}:{left % 60:02d}."
+            tr("Код действует ещё {value}:{value2:02d}.", value=left // 60, value2=left % 60)
             if left > 0
-            else "Срок действия кода истёк или истекает; ждём ответ xAI…"
+            else tr("Срок действия кода истёк или истекает; ждём ответ xAI…")
         )
 
     def _login(self) -> None:
         try:
             self._controller.login(persist=self.to_keyring.isChecked())
         except GrokError as exc:
-            QMessageBox.warning(self, "Вход через xAI", exc.message)
+            QMessageBox.warning(self, tr("Вход через xAI"), exc.message)
 
     def _cancel_login(self) -> None:
         self._controller.cancel_login()
@@ -698,7 +692,7 @@ class GrokSettingsDialog(QDialog):
         try:
             self._controller.apply_settings(enabled=self.enabled_check.isChecked(), model=self.model_edit.text())
         except GrokError as exc:
-            QMessageBox.warning(self, "Настройки Grok", exc.message)
+            QMessageBox.warning(self, tr("Настройки Grok"), exc.message)
             return
         self.accept()
 
@@ -722,7 +716,7 @@ class GrokAskDialog(QDialog):
     ) -> None:
         super().__init__(parent)
         self.setAttribute(Qt.WidgetAttribute.WA_DeleteOnClose)
-        self.setWindowTitle("Grok — помощник по кадру")
+        self.setWindowTitle(tr("Grok — помощник по кадру"))
         self.setMinimumSize(760, 480)
         self._controller = controller
         self._on_caption = on_caption
@@ -746,9 +740,9 @@ class GrokAskDialog(QDialog):
         self._preview_timer.timeout.connect(self._render_preview)
         self.preview.installEventFilter(self)
         source, sent = image.size, upload_size(*image.size)
-        info = f"Кадр: {source[0]}×{source[1]} px"
+        info = tr("Кадр: {value}×{value2} px", value=source[0], value2=source[1])
         if sent != source:
-            info += f"; будет отправлен уменьшенным до {sent[0]}×{sent[1]} px"
+            info += tr("; будет отправлен уменьшенным до {value}×{value2} px", value=sent[0], value2=sent[1])
         left = QVBoxLayout()
         left.addWidget(self.preview)
         left.addWidget(_hint(info + " (JPEG)."))
@@ -767,7 +761,7 @@ class GrokAskDialog(QDialog):
             tasks_row.addWidget(radio)
         tasks_row.addStretch(1)
         right = QVBoxLayout()
-        right.addWidget(QLabel("Что сделать:"))
+        right.addWidget(QLabel(tr("Что сделать:")))
         right.addLayout(tasks_row)
         right.addWidget(self.pages, 1)
 
@@ -776,8 +770,7 @@ class GrokAskDialog(QDialog):
         top.addLayout(right, 1)
 
         transmission_info = QLabel(
-            f"В xAI отправятся показанный кадр и капшен (модель «{controller.settings.model}»). "
-            "Действуют квота аккаунта и правила xAI; store=false."
+            tr("В xAI отправятся показанный кадр и капшен (модель «{value}»). Действуют квота аккаунта и правила xAI; store=false.", value=controller.settings.model)
         )
         transmission_info.setWordWrap(True)
         transmission_info.setTextFormat(Qt.TextFormat.PlainText)
@@ -788,11 +781,11 @@ class GrokAskDialog(QDialog):
         self.status = QLabel()
         self.status.setWordWrap(True)
         self.status.setTextFormat(Qt.TextFormat.PlainText)
-        self.send_button = QPushButton("Отправить в Grok")
+        self.send_button = QPushButton(tr("Отправить в Grok"))
         self.send_button.clicked.connect(self._send)
-        self.stop_button = QPushButton("Остановить")
+        self.stop_button = QPushButton(tr("Остановить"))
         self.stop_button.clicked.connect(self._stop)
-        close_button = QPushButton("Закрыть")
+        close_button = QPushButton(tr("Закрыть"))
         close_button.clicked.connect(self.reject)
         buttons = QHBoxLayout()
         buttons.addWidget(self.send_button)
@@ -815,7 +808,7 @@ class GrokAskDialog(QDialog):
         controller.request_finished.connect(self._on_finished)
         controller.availability_changed.connect(self._on_availability)
         self._listening = True
-        self._show_status("Нажмите «Отправить в Grok». Ничего не применяется без вашей команды.")
+        self._show_status(tr("Нажмите «Отправить в Grok». Ничего не применяется без вашей команды."))
         self._update_controls()
         fit_window(self, (1000, 640))
 
@@ -836,13 +829,13 @@ class GrokAskDialog(QDialog):
         current_pages = PageNavigation(current)
         current_pages.setMaximumHeight(100)
         self.caption_edit = QPlainTextEdit()
-        self.caption_edit.setPlaceholderText("Предложенный капшен появится здесь; его можно править перед применением.")
+        self.caption_edit.setPlaceholderText(tr("Предложенный капшен появится здесь; его можно править перед применением."))
         self.caption_edit.textChanged.connect(self._update_controls)
-        self.apply_caption_button = QPushButton("Применить капшен")
+        self.apply_caption_button = QPushButton(tr("Применить капшен"))
         self.apply_caption_button.clicked.connect(self._apply_caption)
-        layout.addWidget(QLabel("Текущий капшен:"))
+        layout.addWidget(QLabel(tr("Текущий капшен:")))
         layout.addWidget(current_pages)
-        layout.addWidget(QLabel("Предложение Grok (редактируется):"))
+        layout.addWidget(QLabel(tr("Предложение Grok (редактируется):")))
         layout.addWidget(PageNavigation(self.caption_edit), 1)
         layout.addWidget(self.apply_caption_button, 0, Qt.AlignmentFlag.AlignRight)
         return page
@@ -853,9 +846,9 @@ class GrokAskDialog(QDialog):
         self.bars_list = QListWidget()
         self.bars_list.itemChanged.connect(self._bars_changed)
         self.bars_note = _hint("")
-        self.apply_bars_button = QPushButton("Применить отмеченные полосы")
+        self.apply_bars_button = QPushButton(tr("Применить отмеченные полосы"))
         self.apply_bars_button.clicked.connect(self._apply_bars)
-        description = QLabel("Предложенные полосы: снимите отметки с лишних областей.")
+        description = QLabel(tr("Предложенные полосы: снимите отметки с лишних областей."))
         description.setWordWrap(True)
         layout.addWidget(description)
         layout.addWidget(PageNavigation(self.bars_list), 1)
@@ -868,11 +861,11 @@ class GrokAskDialog(QDialog):
         layout = QVBoxLayout(page)
         self.scene_edit = QPlainTextEdit()
         self.scene_edit.setReadOnly(True)
-        self.scene_edit.setPlaceholderText("Нейтральное описание сцены появится здесь (только для чтения).")
+        self.scene_edit.setPlaceholderText(tr("Нейтральное описание сцены появится здесь (только для чтения)."))
         self.scene_edit.textChanged.connect(self._update_controls)
-        self.copy_scene_button = QPushButton("Копировать")
+        self.copy_scene_button = QPushButton(tr("Копировать"))
         self.copy_scene_button.clicked.connect(lambda: QApplication.clipboard().setText(self.scene_edit.toPlainText()))
-        layout.addWidget(QLabel("Описание сцены:"))
+        layout.addWidget(QLabel(tr("Описание сцены:")))
         layout.addWidget(PageNavigation(self.scene_edit), 1)
         layout.addWidget(self.copy_scene_button, 0, Qt.AlignmentFlag.AlignRight)
         return page
@@ -950,12 +943,12 @@ class GrokAskDialog(QDialog):
         except GrokError as exc:
             self._show_status(exc.message, error=True)
             return
-        self._show_status("Запрос отправлен. Ожидание ответа Grok…")
+        self._show_status(tr("Запрос отправлен. Ожидание ответа Grok…"))
         self._update_controls()
 
     def _stop(self) -> None:
         self._cancel_job()
-        self._show_status("Запрос остановлен; ответ будет проигнорирован.")
+        self._show_status(tr("Запрос остановлен; ответ будет проигнорирован."))
         self._update_controls()
 
     def _cancel_job(self) -> None:
@@ -973,7 +966,7 @@ class GrokAskDialog(QDialog):
         elif job.result is not None:
             self._show_result(job.result)
         elif job.cancelled:  # stopped by the controller (sign-out, shutdown), not by this dialog
-            self._show_status("Запрос остановлен; ответ будет проигнорирован.")
+            self._show_status(tr("Запрос остановлен; ответ будет проигнорирован."))
         self._update_controls()
 
     @Slot(bool)
@@ -984,7 +977,7 @@ class GrokAskDialog(QDialog):
             self._cancel_job()
             if stopped or not self._status_error:  # an error just shown (e.g. "sign in again") already says why
                 self._show_status(
-                    "Grok отключён или вход в xAI недействителен: запрос остановлен, отправка недоступна.", error=True
+                    tr("Grok отключён или вход в xAI недействителен: запрос остановлен, отправка недоступна."), error=True
                 )
         self._update_controls()
 
@@ -1006,12 +999,12 @@ class GrokAskDialog(QDialog):
             self.scene_edit.setPlainText(result.text)
         else:
             self._fill_bars(result)
-        parts = [f"Готово. Модель: {result.model or self._controller.settings.model}."]
+        parts = [tr("Готово. Модель: {value}.", value=result.model or self._controller.settings.model)]
         if result.tokens_in or result.tokens_out:
-            parts.append(f"Токены: вход {result.tokens_in}, выход {result.tokens_out}.")
+            parts.append(tr("Токены: вход {value}, выход {value2}.", value=result.tokens_in, value2=result.tokens_out))
         parts.extend(result.notes)
         if result.task == "bars":
-            parts.append(f"Полос: {len(result.bars)}." if result.bars else "Grok не нашёл областей для полос.")
+            parts.append(tr("Полос: {value}.", value=len(result.bars)) if result.bars else tr("Grok не нашёл областей для полос."))
         self._show_status(" ".join(parts))
         self._render_preview()
 
@@ -1022,8 +1015,7 @@ class GrokAskDialog(QDialog):
         self.bars_list.clear()
         for index, bar in enumerate(result.bars, 1):
             text = (
-                f"{index}. {bar.label or 'без названия'} — x {bar.x * 100:.1f}%, y {bar.y * 100:.1f}%, "
-                f"ширина {bar.width * 100:.1f}%, высота {bar.height * 100:.1f}%"
+                tr("{index}. {value} — x {value2:.1f}%, y {value3:.1f}%, ширина {value4:.1f}%, высота {value5:.1f}%", index=index, value=bar.label or tr("без названия"), value2=bar.x * 100, value3=bar.y * 100, value4=bar.width * 100, value5=bar.height * 100)
             )
             item = QListWidgetItem(text)
             item.setFlags(item.flags() | Qt.ItemFlag.ItemIsUserCheckable)
@@ -1035,21 +1027,21 @@ class GrokAskDialog(QDialog):
     def _apply_caption(self) -> None:
         text = self.caption_edit.toPlainText().strip()
         if text:
-            self._deliver(lambda: self._on_caption(text), "Капшен передан в редактор.")
+            self._deliver(lambda: self._on_caption(text), tr("Капшен передан в редактор."))
 
     def _apply_bars(self) -> None:
         boxes = self._checked_boxes()
         if not boxes:
-            self._show_status("Не отмечено ни одной полосы.", error=True)
+            self._show_status(tr("Не отмечено ни одной полосы."), error=True)
             return
-        if self._deliver(lambda: self._on_bars(boxes), f"Полосы переданы в редактор: {len(boxes)}."):
+        if self._deliver(lambda: self._on_bars(boxes), tr("Полосы переданы в редактор: {value}.", value=len(boxes))):
             self._bars_delivered = True  # one delivery per answer, so a second click cannot duplicate the bars
             self._update_controls()
 
     def _deliver(self, call: Callable[[], object], done_message: str) -> bool:
         if call() is False:
             self._show_status(
-                "Редактор не принял результат (кадр или документ изменились). Ничего не применено.", error=True
+                tr("Редактор не принял результат (кадр или документ изменились). Ничего не применено."), error=True
             )
             return False
         self._show_status(done_message)

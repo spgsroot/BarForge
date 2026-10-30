@@ -26,6 +26,7 @@ import cv2
 import numpy as np
 from PIL import Image
 
+from .i18n import tr
 from .models import BAR_COLORS, Bar, Rect
 
 __all__ = [
@@ -202,7 +203,7 @@ class LocalCensorEngine:
         rgb = image if image.mode == "RGB" else image.convert("RGB")
         width, height = rgb.size
         if width < 1 or height < 1:
-            raise ValueError("Размер изображения должен быть положительным")
+            raise ValueError(tr("Размер изображения должен быть положительным"))
         views, coarse = _views(width, height, options.tiles)
         turns = range(4) if options.rotations else range(1)
         total = len(_MODELS) * len(views) * len(turns)
@@ -242,13 +243,11 @@ class LocalCensorEngine:
         )
         if coarse:
             warnings.append(
-                "Изображение очень большое или вытянутое: фрагменты увеличены, чтобы ограничить время анализа, "
-                "поэтому мелкие области могут быть пропущены."
+                tr("Изображение очень большое или вытянутое: фрагменты увеличены, чтобы ограничить время анализа, поэтому мелкие области могут быть пропущены.")
             )
         if not detections:
             warnings.append(
-                "Нейросети не нашли областей для цензуры. Автоматический поиск не гарантирует полноты: "
-                "проверьте изображение и добавьте полосы вручную."
+                tr("Нейросети не нашли областей для цензуры. Автоматический поиск не гарантирует полноты: проверьте изображение и добавьте полосы вручную.")
             )
         return DetectionResult(
             detections,
@@ -280,7 +279,7 @@ def bars_from_detections(
     """
     color = _validated(options)
     if width < 1 or height < 1:
-        raise ValueError("Размер изображения должен быть положительным")
+        raise ValueError(tr("Размер изображения должен быть положительным"))
     grow = options.size_scale * (1 + 2 * options.padding)
     bars: list[Bar] = []
     for detection in detections:
@@ -311,28 +310,28 @@ def _validated(options: CensorOptions) -> str:
     """Raise ValueError for unusable options; return the bar colour in lower case."""
     color = str(options.color).lower()
     if color not in BAR_COLORS:
-        raise ValueError(f"Недопустимый цвет полосы: {options.color!r} (допустимы #ffffff и #000000)")
+        raise ValueError(tr("Недопустимый цвет полосы: {value!r} (допустимы #ffffff и #000000)", value=options.color))
     for name, valid, value in (
-        ("порог уверенности", 0 < options.confidence <= 1, options.confidence),
-        ("порог уверенности для сцен", 0 < options.act_confidence <= 1, options.act_confidence),
-        ("отступ", 0 <= options.padding <= 2, options.padding),
-        ("масштаб зоны", 0.1 <= options.size_scale <= 10, options.size_scale),
-        ("толщина линии", isinstance(options.thickness, int) and 1 <= options.thickness <= MAX_THICKNESS,
+        (tr("порог уверенности"), 0 < options.confidence <= 1, options.confidence),
+        (tr("порог уверенности для сцен"), 0 < options.act_confidence <= 1, options.act_confidence),
+        (tr("отступ"), 0 <= options.padding <= 2, options.padding),
+        (tr("масштаб зоны"), 0.1 <= options.size_scale <= 10, options.size_scale),
+        (tr("толщина линии"), isinstance(options.thickness, int) and 1 <= options.thickness <= MAX_THICKNESS,
          options.thickness),
-        ("нижняя граница отклонения толщины",
+        (tr("нижняя граница отклонения толщины"),
          isinstance(options.variation_min, int) and 0 <= options.variation_min <= MAX_VARIATION,
          options.variation_min),
-        ("верхняя граница отклонения толщины",
+        (tr("верхняя граница отклонения толщины"),
          isinstance(options.variation_max, int) and 0 <= options.variation_max <= MAX_VARIATION,
          options.variation_max),
-        ("шаг линий (должен превышать толщину)", isinstance(options.spacing, int) and options.spacing > options.thickness, options.spacing),
-        ("угол линий", math.isfinite(options.angle) and -180 <= options.angle <= 180, options.angle),
+        (tr("шаг линий (должен превышать толщину)"), isinstance(options.spacing, int) and options.spacing > options.thickness, options.spacing),
+        (tr("угол линий"), math.isfinite(options.angle) and -180 <= options.angle <= 180, options.angle),
     ):
         if not valid:
-            raise ValueError(f"Недопустимое значение параметра «{name}»: {value!r}")
+            raise ValueError(tr("Недопустимое значение параметра «{name}»: {value!r}", name=name, value=value))
     if options.variation_min > options.variation_max:
         raise ValueError(
-            f"Нижняя граница отклонения толщины ({options.variation_min}) больше верхней ({options.variation_max})"
+            tr("Нижняя граница отклонения толщины ({value}) больше верхней ({value2})", value=options.variation_min, value2=options.variation_max)
         )
     return color
 
@@ -341,7 +340,7 @@ def _passes(detection: Detection, options: CensorOptions) -> bool:
     """Whether ``options`` ask for this detection: kind switch and the threshold of its kind."""
     kind = detection.kind
     if kind not in _KINDS:
-        raise ValueError(f"Неизвестный тип области: {kind!r}")
+        raise ValueError(tr("Неизвестный тип области: {kind!r}", kind=kind))
     if kind == "act":
         return options.include_acts and detection.confidence >= options.act_confidence
     if kind == "anus" and not options.include_anus:
@@ -407,14 +406,13 @@ def _open_heads(directory: Path) -> list[_Head]:
     missing = [name for name in _MODELS if not (directory / name).is_file()]
     if missing:
         raise RuntimeError(
-            f"Не найдены файлы нейросетевых моделей: {', '.join(missing)} (папка «{directory}»). "
-            "Восстановите содержимое папки assets или переустановите приложение."
+            tr("Не найдены файлы нейросетевых моделей: {value} (папка «{directory}»). Восстановите содержимое папки assets или переустановите приложение.", value=', '.join(missing), directory=directory)
         )
     try:
         import onnxruntime as ort  # imported here: it is slow, and the module must import without it
     except ImportError as exc:
         raise RuntimeError(
-            f"Не удалось загрузить библиотеку onnxruntime: {exc}. Установите её командой «pip install onnxruntime»."
+            tr("Не удалось загрузить библиотеку onnxruntime: {exc}. Установите её командой «pip install onnxruntime».", exc=exc)
         ) from exc
     session_options = ort.SessionOptions()
     session_options.intra_op_num_threads = max(1, min(8, (os.cpu_count() or 2) // 2))  # leave cores to the GUI
@@ -427,19 +425,19 @@ def _open_head(ort: Any, path: Path, expected: tuple[str, ...], session_options:
     try:
         session = ort.InferenceSession(str(path), sess_options=session_options, providers=["CPUExecutionProvider"])
     except Exception as exc:  # onnxruntime has its own error types for unreadable or damaged files
-        raise RuntimeError(f"Не удалось загрузить модель «{path.name}»: {exc}") from exc
+        raise RuntimeError(tr("Не удалось загрузить модель «{value}»: {exc}", value=path.name, exc=exc)) from exc
     shape = session.get_inputs()[0].shape  # [1, 3, 640, 640] or symbolic sides
     if len(shape) != 4 or any(isinstance(side, int) and side != _INPUT for side in shape[2:]):
-        raise RuntimeError(f"Модель «{path.name}» рассчитана на вход {shape}, а нужен {_INPUT}×{_INPUT}.")
+        raise RuntimeError(tr("Модель «{value}» рассчитана на вход {shape}, а нужен {_INPUT}×{_INPUT}.", value=path.name, shape=shape, _INPUT=_INPUT))
     try:
         names = ast.literal_eval(session.get_modelmeta().custom_metadata_map.get("names", ""))
     except (ValueError, SyntaxError):
         names = None
     if not isinstance(names, dict) or set(names) != set(range(len(names))):
-        raise RuntimeError(f"В модели «{path.name}» не удалось прочитать имена классов.")
+        raise RuntimeError(tr("В модели «{value}» не удалось прочитать имена классов.", value=path.name))
     absent = [name for name in expected if name not in names.values()]
     if absent:
-        raise RuntimeError(f"Модель «{path.name}» не содержит нужных классов: {', '.join(absent)}.")
+        raise RuntimeError(tr("Модель «{value}» не содержит нужных классов: {value2}.", value=path.name, value2=', '.join(absent)))
     classes = np.array([_LABELS.index(names[i]) if names[i] in _LABELS else -1 for i in range(len(names))], np.int16)
     return _Head(path.stem, session, session.get_inputs()[0].name, classes)
 
@@ -506,7 +504,7 @@ def _run(head: _Head, blob: np.ndarray) -> np.ndarray:
     try:
         return head.session.run(None, {head.input_name: blob})[0]
     except Exception as exc:  # onnxruntime raises its own error types
-        raise RuntimeError(f"Ошибка работы модели «{head.name}»: {exc}") from exc
+        raise RuntimeError(tr("Ошибка работы модели «{value}»: {exc}", value=head.name, exc=exc)) from exc
 
 
 def _unturn(x0: Any, y0: Any, x1: Any, y1: Any, turn: int) -> tuple[Any, Any, Any, Any]:
@@ -533,7 +531,7 @@ def _candidates(output: np.ndarray, head: _Head, cutoff: np.ndarray, turn: int, 
     pred = output[0] if output.ndim == 3 else output
     channels = 4 + len(head.classes)
     if pred.ndim != 2 or channels not in pred.shape:
-        raise RuntimeError(f"Модель «{head.name}» вернула неожиданный формат выхода {tuple(output.shape)}.")
+        raise RuntimeError(tr("Модель «{value}» вернула неожиданный формат выхода {value2}.", value=head.name, value2=tuple(output.shape)))
     if pred.shape[0] != channels:
         pred = pred.T  # (anchors, channels) layout
     scores = pred[4:]

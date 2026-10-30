@@ -13,9 +13,10 @@ from PySide6.QtWidgets import (
     QCheckBox, QComboBox, QDialog, QDialogButtonBox, QDoubleSpinBox, QFileDialog, QGraphicsScene,
     QGraphicsView, QGridLayout, QGroupBox, QHBoxLayout, QLabel, QLineEdit, QListWidget, QMainWindow,
     QMessageBox, QPlainTextEdit, QProgressBar, QPushButton, QSizePolicy, QSpinBox, QSplitter,
-    QTabWidget, QToolBar, QVBoxLayout, QWidget,
+    QMenu, QTabWidget, QToolBar, QToolButton, QVBoxLayout, QWidget,
 )
 
+from .i18n import LANGUAGE_NAMES, current_language, save_language, tr
 from .canvas import ImageCanvas
 from .imaging import auto_bars, load_rgb, render_pair
 from .models import (
@@ -85,7 +86,7 @@ class MainWindow(QMainWindow):
         self._image_task = None
         self._last_caption = DEFAULT_CAPTION
         self._batch_dialog = None
-        self.setWindowTitle("BarForge — парный датасет")
+        self.setWindowTitle(tr("BarForge — парный датасет"))
         self._build_ui()
         self._build_shortcuts()
         # Importing credentials is separate from opening source images.
@@ -94,7 +95,7 @@ class MainWindow(QMainWindow):
         self.grok.availability_changed.connect(lambda _available: self._refresh_grok())
         self._refresh_grok()
         self._update_progress()
-        self.statusBar().showMessage("Откройте папку PNG/JPG/WEBP или сохранённую сессию.")
+        self.statusBar().showMessage(tr("Откройте папку PNG/JPG/WEBP или сохранённую сессию."))
         fit_window(self, (1440, 920))
 
     @property
@@ -110,28 +111,43 @@ class MainWindow(QMainWindow):
         return button
 
     def _build_ui(self):
-        toolbar = QToolBar("Проект", self)
+        toolbar = QToolBar(tr("Проект"), self)
         toolbar.setMovable(False)
         self.addToolBar(toolbar)
         for text, callback, shortcut in (
-            ("Открыть папку", self.open_folder, "Ctrl+O"),
-            ("Загрузить сессию", self.open_session, "Ctrl+L"),
-            ("Сохранить сессию", self.save_current_session, "Ctrl+Shift+S"),
+            (tr("Открыть папку"), self.open_folder, "Ctrl+O"),
+            (tr("Загрузить сессию"), self.open_session, "Ctrl+L"),
+            (tr("Сохранить сессию"), self.save_current_session, "Ctrl+Shift+S"),
         ):
             action = QAction(text, self)
             action.triggered.connect(callback)
             action.setShortcut(shortcut)
             toolbar.addAction(action)
         toolbar.addSeparator()
-        self.output_action = QAction("Папка датасета…", self)
+        self.output_action = QAction(tr("Папка датасета…"), self)
         self.output_action.triggered.connect(self.choose_output)
         toolbar.addAction(self.output_action)
-        settings = QAction("Настройки Grok…", self)
+        settings = QAction(tr("Настройки Grok…"), self)
         settings.triggered.connect(self.grok_settings)
         toolbar.addAction(settings)
-        help_action = QAction("Горячие клавиши", self)
+        help_action = QAction(tr("Горячие клавиши"), self)
         help_action.triggered.connect(self.show_help)
         toolbar.addAction(help_action)
+        language_button = QToolButton()
+        language_button.setText(tr("Язык"))
+        language_button.setPopupMode(QToolButton.ToolButtonPopupMode.InstantPopup)
+        language_menu = QMenu(language_button)
+        language_group = QActionGroup(self)
+        language_group.setExclusive(True)
+        for code, name in LANGUAGE_NAMES.items():
+            language_action = QAction(name, self)
+            language_action.setCheckable(True)
+            language_action.setChecked(code == current_language())
+            language_action.triggered.connect(lambda _checked=False, code=code: self._choose_language(code))
+            language_group.addAction(language_action)
+            language_menu.addAction(language_action)
+        language_button.setMenu(language_menu)
+        toolbar.addWidget(language_button)
 
         root = QWidget()
         outer = QVBoxLayout(root)
@@ -141,7 +157,7 @@ class MainWindow(QMainWindow):
         title.setObjectName("brand")
         header.addWidget(title)
         header.addWidget(QLabel("CLEAN / CONTROL · DATASET EDITOR"))
-        self.project_label = ElidedLabel("Нет открытой папки")
+        self.project_label = ElidedLabel(tr("Нет открытой папки"))
         self.project_label.setAlignment(Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter)
         header.addWidget(self.project_label, 1)
         outer.addLayout(header)
@@ -151,9 +167,9 @@ class MainWindow(QMainWindow):
         left = QWidget()
         left_layout = QVBoxLayout(left)
         left_layout.setContentsMargins(0, 0, 8, 0)
-        left_layout.addWidget(QLabel("ИЗОБРАЖЕНИЯ / КРОПЫ"))
+        left_layout.addWidget(QLabel(tr("ИЗОБРАЖЕНИЯ / КРОПЫ")))
         self.filter = QLineEdit()
-        self.filter.setPlaceholderText("Фильтр по имени…")
+        self.filter.setPlaceholderText(tr("Фильтр по имени…"))
         self.filter.textChanged.connect(self._filter_files)
         left_layout.addWidget(self.filter)
         self.files = QListWidget()
@@ -162,13 +178,13 @@ class MainWindow(QMainWindow):
         self.files.currentRowChanged.connect(self._select_document)
         left_layout.addWidget(PageNavigation(self.files), 1)
         nav = QHBoxLayout()
-        self._button("← Назад", lambda: self.navigate(-1), nav)
-        self._button("Далее →", lambda: self.navigate(1), nav)
+        self._button(tr("← Назад"), lambda: self.navigate(-1), nav)
+        self._button(tr("Далее →"), lambda: self.navigate(1), nav)
         left_layout.addLayout(nav)
         self.progress = QProgressBar()
-        self.progress.setFormat("%v / %m документов")
+        self.progress.setFormat(tr("%v / %m документов"))
         left_layout.addWidget(self.progress)
-        self.pair_count = QLabel("Пар на диске: 0")
+        self.pair_count = QLabel(tr("Пар на диске: 0"))
         self.pair_count.setWordWrap(True)
         left_layout.addWidget(self.pair_count)
         split.addWidget(left)
@@ -176,12 +192,12 @@ class MainWindow(QMainWindow):
         middle = QWidget()
         middle_layout = QVBoxLayout(middle)
         middle_layout.setContentsMargins(0, 0, 0, 0)
-        tools = QToolBar("Инструменты")
+        tools = QToolBar(tr("Инструменты"))
         tools.setMovable(False)
         self.tool_group = QActionGroup(self)
         self.tool_group.setExclusive(True)
         self.tool_actions = {}
-        for name, text in (("select", "Выбор [V]"), ("bar", "Полоса [B]"), ("brush", "Кисть [P]"), ("crop", "Кроп [C]")):
+        for name, text in (("select", tr("Выбор [V]")), ("bar", tr("Полоса [B]")), ("brush", tr("Кисть [P]")), ("crop", tr("Кроп [C]"))):
             action = QAction(text, self)
             action.setCheckable(True)
             action.triggered.connect(lambda checked, tool=name: self.canvas.set_tool(tool))
@@ -199,9 +215,9 @@ class MainWindow(QMainWindow):
         middle_layout.addWidget(self.canvas, 1)
         view_tools = QHBoxLayout()
         self._button("−", self.canvas.zoom_out, view_tools)
-        self._button("Вписать [F]", self.canvas.fit_image, view_tools)
+        self._button(tr("Вписать [F]"), self.canvas.fit_image, view_tools)
         self._button("+", self.canvas.zoom_in, view_tools)
-        self.image_info = ElidedLabel("Колесо — зум · СКМ — панорама · Боковая кнопка + движение — толщина")
+        self.image_info = ElidedLabel(tr("Колесо — зум · СКМ — панорама · Боковая кнопка + движение — толщина"))
         self.image_info.setAlignment(Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter)
         view_tools.addWidget(self.image_info, 1)
         middle_layout.addLayout(view_tools)
@@ -212,9 +228,9 @@ class MainWindow(QMainWindow):
         sidebar_layout.setContentsMargins(8, 0, 0, 0)
         # Tabs instead of a scroll area: every setting stays reachable and the export actions never leave the view.
         self.tabs = QTabWidget()
-        self.tabs.addTab(self._build_bars_page(), "Полосы")
-        self.tabs.addTab(self._build_caption_page(), "Капшен")
-        self.tabs.setTabToolTip(1, "Капшен сохраняется в clean/*.txt")
+        self.tabs.addTab(self._build_bars_page(), tr("Полосы"))
+        self.tabs.addTab(self._build_caption_page(), tr("Капшен"))
+        self.tabs.setTabToolTip(1, tr("Капшен сохраняется в clean/*.txt"))
         sidebar_layout.addWidget(self.tabs, 1)
         sidebar_layout.addWidget(self._build_export_group())
         split.addWidget(sidebar)
@@ -238,7 +254,7 @@ class MainWindow(QMainWindow):
         self.thickness.setValue(6)
         self.thickness.setSuffix(" px")
         self.thickness.valueChanged.connect(self._brush_changed)
-        grid.addWidget(QLabel("Толщина"), 0, 0)
+        grid.addWidget(QLabel(tr("Толщина")), 0, 0)
         grid.addWidget(self.thickness, 0, 1)
         self.bar_angle = QDoubleSpinBox()
         self.bar_angle.setRange(-180, 180)
@@ -246,50 +262,50 @@ class MainWindow(QMainWindow):
         self.bar_angle.setSingleStep(5)
         self.bar_angle.setSuffix("°")
         self.bar_angle.valueChanged.connect(self._brush_changed)
-        angle_label = QLabel("Угол")
-        angle_label.setToolTip("Угол выбранной полосы")
-        self.bar_angle.setToolTip("Угол выбранной полосы")
+        angle_label = QLabel(tr("Угол"))
+        angle_label.setToolTip(tr("Угол выбранной полосы"))
+        self.bar_angle.setToolTip(tr("Угол выбранной полосы"))
         grid.addWidget(angle_label, 0, 2)
         grid.addWidget(self.bar_angle, 0, 3)
         self.color = QComboBox()
-        self.color.addItem("Белый", "#ffffff")
-        self.color.addItem("Чёрный", "#000000")
+        self.color.addItem(tr("Белый"), "#ffffff")
+        self.color.addItem(tr("Чёрный"), "#000000")
         self.color.currentIndexChanged.connect(self._brush_changed)
         self.color.currentIndexChanged.connect(self._recolor_caption)
-        grid.addWidget(QLabel("Цвет"), 1, 0)
+        grid.addWidget(QLabel(tr("Цвет")), 1, 0)
         grid.addWidget(self.color, 1, 1)
         self.presets = QComboBox()
-        self.presets.addItem("Пресеты…", None)
-        for label, value in (("Белый · 4 px", (4, "#ffffff")),
-                             ("Белый · 6 px", (6, "#ffffff")),
-                             ("Белый · 9 px", (9, "#ffffff")),
-                             ("Чёрный · 4 px", (4, "#000000")),
-                             ("Чёрный · 6 px", (6, "#000000")),
-                             ("Чёрный · 9 px", (9, "#000000"))):
+        self.presets.addItem(tr("Пресеты…"), None)
+        for label, value in ((tr("Белый · 4 px"), (4, "#ffffff")),
+                             (tr("Белый · 6 px"), (6, "#ffffff")),
+                             (tr("Белый · 9 px"), (9, "#ffffff")),
+                             (tr("Чёрный · 4 px"), (4, "#000000")),
+                             (tr("Чёрный · 6 px"), (6, "#000000")),
+                             (tr("Чёрный · 9 px"), (9, "#000000"))):
             self.presets.addItem(label, value)
         self.presets.activated.connect(self._apply_preset)
         grid.addWidget(self.presets, 1, 2, 1, 2)
         row = QHBoxLayout()
-        self._button("Удалить", self.canvas.delete_selected, row)
-        self._button("Очистить разметку", self._clear_bars, row)
+        self._button(tr("Удалить"), self.canvas.delete_selected, row)
+        self._button(tr("Очистить разметку"), self._clear_bars, row)
         grid.addLayout(row, 2, 0, 1, 4)
-        neural_button = QPushButton("Нейроавтоцензор… [Ctrl+Shift+A]")
+        neural_button = QPushButton(tr("Нейроавтоцензор… [Ctrl+Shift+A]"))
         neural_button.clicked.connect(self.automatic_censor)
         grid.addWidget(neural_button, 3, 0, 1, 4)
-        self.batch_button = QPushButton("Автодатасет… [Ctrl+Alt+A]")
-        self.batch_button.setToolTip("Пакетно предложить кропы и полосы, проверить и экспортировать пары.")
+        self.batch_button = QPushButton(tr("Автодатасет… [Ctrl+Alt+A]"))
+        self.batch_button.setToolTip(tr("Пакетно предложить кропы и полосы, проверить и экспортировать пары."))
         self.batch_button.setEnabled(False)
         self.batch_button.clicked.connect(self.automatic_dataset)
         grid.addWidget(self.batch_button, 4, 0, 1, 4)
         variation_row = QHBoxLayout()
-        variation_row.addWidget(QLabel("Случайная толщина ±"))
+        variation_row.addWidget(QLabel(tr("Случайная толщина ±")))
         self.variation_min = QSpinBox()
         self.variation_max = QSpinBox()
         for spin in (self.variation_min, self.variation_max):
             spin.setRange(0, 64)
             spin.setSuffix(" px")
             spin.valueChanged.connect(lambda _value, moved=spin: self._variation_changed(moved))
-            spin.setToolTip("Диапазон для автоматических линий; ручная кисть использует точную толщину.")
+            spin.setToolTip(tr("Диапазон для автоматических линий; ручная кисть использует точную толщину."))
             variation_row.addWidget(spin)
         self.variation_min.setValue(3)
         self.variation_max.setValue(8)
@@ -299,10 +315,10 @@ class MainWindow(QMainWindow):
         self.auto_count.setRange(1, 12)
         self.auto_count.setValue(3)
         row = QHBoxLayout()
-        row.addWidget(QLabel("Полос в пресете"))
+        row.addWidget(QLabel(tr("Полос в пресете")))
         row.addWidget(self.auto_count)
-        self._button("+ Центр", self.add_auto_bars, row)
-        self._button("Сбросить кроп", self.canvas.reset_crop, row)
+        self._button(tr("+ Центр"), self.add_auto_bars, row)
+        self._button(tr("Сбросить кроп"), self.canvas.reset_crop, row)
         grid.addLayout(row, 6, 0, 1, 4)
         grid.setColumnStretch(1, 1)
         grid.setColumnStretch(3, 1)
@@ -319,18 +335,17 @@ class MainWindow(QMainWindow):
         for label, pattern in CAPTION_TEMPLATES:
             self.templates.addItem(label, pattern)
             self.templates.setItemData(self.templates.count() - 1, pattern, Qt.ItemDataRole.ToolTipRole)
-        self.templates.setToolTip("Готовый капшен: цвет полос подставляется как white / black. При смене цвета "
-                                  "готовый капшен перекрашивается, собственный текст не меняется.")
+        self.templates.setToolTip(tr("Готовый капшен: цвет полос подставляется как white / black. При смене цвета готовый капшен перекрашивается, собственный текст не меняется."))
         row.addWidget(self.templates, 1)
-        self.apply_template_button = self._button("Применить шаблон", self.apply_template, row)
+        self.apply_template_button = self._button(tr("Применить шаблон"), self.apply_template, row)
         layout.addLayout(row)
         self.caption = QPlainTextEdit()
-        self.caption.setPlaceholderText("Инструкция для обучения или собственный капшен…")
-        self.caption.setToolTip(f"{COLOR_PLACEHOLDER} в тексте заменяется на white или black по выбранному цвету полос.")
+        self.caption.setPlaceholderText(tr("Инструкция для обучения или собственный капшен…"))
+        self.caption.setToolTip(tr("{COLOR_PLACEHOLDER} в тексте заменяется на white или black по выбранному цвету полос.", COLOR_PLACEHOLDER=COLOR_PLACEHOLDER))
         self.caption.setMinimumHeight(72)
         self.caption.textChanged.connect(self._caption_changed)
         layout.addWidget(PageNavigation(self.caption), 1)
-        self.ask_button = self._button("Спросить Grok…", self.ask_grok, layout)
+        self.ask_button = self._button(tr("Спросить Grok…"), self.ask_grok, layout)
         self.grok_hint = QLabel()
         self.grok_hint.setWordWrap(True)
         # Reserve the wrapped lines: a word-wrapped label would otherwise squeeze the editor at the minimum height.
@@ -339,33 +354,33 @@ class MainWindow(QMainWindow):
         return page
 
     def _build_export_group(self):
-        export = QGroupBox("ЭКСПОРТ ПАРЫ")
+        export = QGroupBox(tr("ЭКСПОРТ ПАРЫ"))
         layout = QVBoxLayout(export)
         layout.setSpacing(5)
         # A read-only field keeps the whole path selectable and never forces the sidebar wider.
         self.output_label = QLineEdit()
         self.output_label.setReadOnly(True)
-        self.output_label.setPlaceholderText("Папка датасета не выбрана")
+        self.output_label.setPlaceholderText(tr("Папка датасета не выбрана"))
         layout.addWidget(self.output_label)
         self._show_output_dir()
-        self.new_pair = QCheckBox("Сохранить как новую пару")
-        self.new_pair.setToolTip("Не заменять прошлый экспорт этого источника; удобно для нескольких панелей.")
+        self.new_pair = QCheckBox(tr("Сохранить как новую пару"))
+        self.new_pair.setToolTip(tr("Не заменять прошлый экспорт этого источника; удобно для нескольких панелей."))
         self.new_pair.setChecked(True)
         options = QHBoxLayout()
         options.addWidget(self.new_pair)
         layout.addLayout(options)
         self.upscale_check = QCheckBox("RealESRGAN x4 · anime_6B")
-        self.upscale_check.setToolTip("Локальный апскейл обеих сторон кропа; до 16 777 216 выходных пикселей.")
+        self.upscale_check.setToolTip(tr("Локальный апскейл обеих сторон кропа; до 16 777 216 выходных пикселей."))
         self.upscale_check.toggled.connect(self._upscale_changed)
         options.addWidget(self.upscale_check)
         self.upscale_progress = QProgressBar()
         self.upscale_progress.setVisible(False)
         layout.addWidget(self.upscale_progress)
-        self.cancel_upscale = self._button("Остановить апскейл", self._cancel_image_task, layout)
+        self.cancel_upscale = self._button(tr("Остановить апскейл"), self._cancel_image_task, layout)
         self.cancel_upscale.setVisible(False)
         actions = QHBoxLayout()
-        self.preview_button = self._button("Превью [Ctrl+P]", self.preview_pair, actions)
-        self.save_button = self._button("Сохранить [Ctrl+S]", self.save_pair, actions)
+        self.preview_button = self._button(tr("Превью [Ctrl+P]"), self.preview_pair, actions)
+        self.save_button = self._button(tr("Сохранить [Ctrl+S]"), self.save_pair, actions)
         layout.addLayout(actions)
         self.save_button.setObjectName("primary")
         return export
@@ -406,14 +421,14 @@ class MainWindow(QMainWindow):
             self._title()
 
     def _title(self):
-        name = self.session_path.name if self.session_path else "Новая сессия"
+        name = self.session_path.name if self.session_path else tr("Новая сессия")
         self.setWindowTitle(f"{'* ' if self.session_dirty else ''}{name} — BarForge")
 
     def _maybe_save_session(self):
         if not self.session_dirty:
             return True
         answer = QMessageBox.question(
-            self, "Сохранить сессию?", "Есть изменения в разметке или настройках сессии.",
+            self, tr("Сохранить сессию?"), tr("Есть изменения в разметке или настройках сессии."),
             QMessageBox.StandardButton.Save | QMessageBox.StandardButton.Discard | QMessageBox.StandardButton.Cancel,
             QMessageBox.StandardButton.Save)
         if answer == QMessageBox.StandardButton.Cancel:
@@ -422,18 +437,18 @@ class MainWindow(QMainWindow):
 
     def open_folder(self):
         if self._image_task is not None:
-            self.statusBar().showMessage("Сначала дождитесь или остановите текущий апскейл.")
+            self.statusBar().showMessage(tr("Сначала дождитесь или остановите текущий апскейл."))
             return
-        folder = QFileDialog.getExistingDirectory(self, "Папка исходных PNG/JPG/WEBP", self.session.source_dir)
+        folder = QFileDialog.getExistingDirectory(self, tr("Папка исходных PNG/JPG/WEBP"), self.session.source_dir)
         if not folder:
             return
         try:
             documents = discover_images(Path(folder))
         except (OSError, ValueError) as exc:
-            self._error("Не удалось открыть папку", exc)
+            self._error(tr("Не удалось открыть папку"), exc)
             return
         if not documents:
-            QMessageBox.information(self, "Нет изображений", "В этой папке нет PNG/JPG/JPEG/WEBP. Подпапки не включаются.")
+            QMessageBox.information(self, tr("Нет изображений"), tr("В этой папке нет PNG/JPG/JPEG/WEBP. Подпапки не включаются."))
             return
         if not self._maybe_save_session():
             return
@@ -444,15 +459,15 @@ class MainWindow(QMainWindow):
 
     def open_session(self):
         if self._image_task is not None:
-            self.statusBar().showMessage("Сначала дождитесь или остановите текущий апскейл.")
+            self.statusBar().showMessage(tr("Сначала дождитесь или остановите текущий апскейл."))
             return
-        filename, _ = QFileDialog.getOpenFileName(self, "Загрузить сессию", "", "BarForge (*.barforge.json *.json)")
+        filename, _ = QFileDialog.getOpenFileName(self, tr("Загрузить сессию"), "", "BarForge (*.barforge.json *.json)")
         if not filename:
             return
         try:
             session = load_session(Path(filename))
         except (OSError, ValueError, TypeError) as exc:
-            self._error("Не удалось загрузить сессию", exc)
+            self._error(tr("Не удалось загрузить сессию"), exc)
             return
         if not self._maybe_save_session():
             return
@@ -466,12 +481,12 @@ class MainWindow(QMainWindow):
         self._title()
         missing = sum(not Path(doc.source).is_file() for doc in session.documents)
         if missing:
-            QMessageBox.warning(self, "Исходники недоступны", f"Не найдено изображений: {missing}. Восстановите файлы по путям в сессии или перенесите папку вместе с сессией.")
+            QMessageBox.warning(self, tr("Исходники недоступны"), tr("Не найдено изображений: {missing}. Восстановите файлы по путям в сессии или перенесите папку вместе с сессией.", missing=missing))
 
     def save_current_session(self):
         path = self.session_path
         if path is None:
-            filename, _ = QFileDialog.getSaveFileName(self, "Сохранить сессию", "session.barforge.json", "BarForge (*.barforge.json)")
+            filename, _ = QFileDialog.getSaveFileName(self, tr("Сохранить сессию"), "session.barforge.json", "BarForge (*.barforge.json)")
             if not filename:
                 return False
             path = Path(filename)
@@ -481,12 +496,12 @@ class MainWindow(QMainWindow):
         try:
             save_session(self.session, path)
         except (OSError, ValueError) as exc:
-            self._error("Ошибка сохранения сессии", exc)
+            self._error(tr("Ошибка сохранения сессии"), exc)
             return False
         self.session_path = path
         self.session_dirty = False
         self._title()
-        self.statusBar().showMessage(f"Сессия сохранена: {path}", 6000)
+        self.statusBar().showMessage(tr("Сессия сохранена: {path}", path=path), 6000)
         return True
 
     def _populate_files(self):
@@ -498,7 +513,7 @@ class MainWindow(QMainWindow):
         for doc in self.session.documents:
             self.files.addItem(self._file_label(doc))
             self.files.item(self.files.count() - 1).setToolTip(doc.source)
-        self.project_label.setText(Path(self.session.source_dir).name or "Сессия")
+        self.project_label.setText(Path(self.session.source_dir).name or tr("Сессия"))
         self._show_output_dir()
         self._loading = False
         self.batch_button.setEnabled(bool(self.session.documents))
@@ -540,13 +555,13 @@ class MainWindow(QMainWindow):
             self.canvas.set_document(self._image, doc)
             self._brush_changed()
             self.canvas.setEnabled(True)
-            self.image_info.setText(f"{self._image.width} × {self._image.height} px · Колесо: зум · СКМ: панорама")
+            self.image_info.setText(tr("{value} × {value2} px · Колесо: зум · СКМ: панорама", value=self._image.width, value2=self._image.height))
         except (OSError, ValueError) as exc:
             self._image = None
             self.canvas.setEnabled(False)
             self.canvas.clear_document()
-            self.image_info.setText("Изображение недоступно")
-            self.statusBar().showMessage(f"Ошибка чтения {Path(doc.source).name}: {exc}")
+            self.image_info.setText(tr("Изображение недоступно"))
+            self.statusBar().showMessage(tr("Ошибка чтения {value}: {exc}", value=Path(doc.source).name, exc=exc))
         self.upscale_check.blockSignals(True)
         self.upscale_check.setChecked(doc.upscale)
         self.upscale_check.blockSignals(False)
@@ -668,7 +683,7 @@ class MainWindow(QMainWindow):
 
     def _clear_bars(self):
         if self.document and (self.document.bars or self.document.strokes):
-            if QMessageBox.question(self, "Очистить разметку?", "Удалить все полосы и штрихи кисти текущего изображения? Это действие можно отменить на канвасе.") == QMessageBox.StandardButton.Yes:
+            if QMessageBox.question(self, tr("Очистить разметку?"), tr("Удалить все полосы и штрихи кисти текущего изображения? Это действие можно отменить на канвасе.")) == QMessageBox.StandardButton.Yes:
                 self.canvas.clear_bars()
 
     def add_auto_bars(self):
@@ -677,7 +692,7 @@ class MainWindow(QMainWindow):
         bars = auto_bars(self._image.width, self._image.height, self.document.crop,
                          count=self.auto_count.value(), thickness=self.thickness.value(), color=self.color.currentData())
         self.canvas.add_bars(bars)
-        self.statusBar().showMessage("Добавлены центральные полосы. Перейдите в «Выбор» для правки; Ctrl+Z — отмена.", 6000)
+        self.statusBar().showMessage(tr("Добавлены центральные полосы. Перейдите в «Выбор» для правки; Ctrl+Z — отмена."), 6000)
 
     def automatic_censor(self):
         doc = self.document
@@ -773,9 +788,8 @@ class MainWindow(QMainWindow):
             if old_root != Path(output_dir).resolve():
                 if any(doc.export_name for doc in self.session.documents):
                     answer = QMessageBox.question(
-                        self._batch_dialog or self, "Сменить датасет сессии?",
-                        "Пакет сохранён в другой папке. Переключить сессию на неё? Привязки к прежним "
-                        "экспортам сбросятся; сами файлы останутся. Отдельная пакетная сессия уже сохранена.",
+                        self._batch_dialog or self, tr("Сменить датасет сессии?"),
+                        tr("Пакет сохранён в другой папке. Переключить сессию на неё? Привязки к прежним экспортам сбросятся; сами файлы останутся. Отдельная пакетная сессия уже сохранена."),
                     )
                     if answer != QMessageBox.StandardButton.Yes:
                         return False
@@ -809,23 +823,23 @@ class MainWindow(QMainWindow):
             self.session.current_index = first
             self._populate_files()
             self._touch()
-        self.statusBar().showMessage(f"Подготовленные документы в сессии: {len(documents)}.", 7000)
+        self.statusBar().showMessage(tr("Подготовленные документы в сессии: {value}.", value=len(documents)), 7000)
         return True
 
 
     def _show_output_dir(self):
         folder = self.session.output_dir
         self.output_label.setText(folder)
-        self.output_label.setToolTip(folder or "Выберите папку датасета в верхней панели («Папка датасета…»)")
+        self.output_label.setToolTip(folder or tr("Выберите папку датасета в верхней панели («Папка датасета…»)"))
 
     def choose_output(self):
         if self._image_task is not None:
             return False
-        folder = QFileDialog.getExistingDirectory(self, "Папка датасета (содержит clean и censored)", self.session.output_dir)
+        folder = QFileDialog.getExistingDirectory(self, tr("Папка датасета (содержит clean и censored)"), self.session.output_dir)
         if not folder or folder == self.session.output_dir:
             return bool(folder)
         if any(doc.export_name for doc in self.session.documents):
-            answer = QMessageBox.question(self, "Сменить датасет?", "Привязки к прошлым экспортам будут сброшены. Файлы прежнего датасета останутся на диске.")
+            answer = QMessageBox.question(self, tr("Сменить датасет?"), tr("Привязки к прошлым экспортам будут сброшены. Файлы прежнего датасета останутся на диске."))
             if answer != QMessageBox.StandardButton.Yes:
                 return False
         self.session.output_dir = folder
@@ -854,7 +868,7 @@ class MainWindow(QMainWindow):
                         for path in (root / "clean").glob("*.png"))
                 except OSError:
                     pass
-        self.pair_count.setText(f"Пар на диске: {self._disk_pair_count}\nГотово документов: {ready} / {count}")
+        self.pair_count.setText(tr("Пар на диске: {disk_pair_count}\nГотово документов: {ready} / {count}", disk_pair_count=self._disk_pair_count, ready=ready, count=count))
 
     def _set_image_busy(self, busy):
         self.files.setEnabled(not busy)
@@ -888,9 +902,9 @@ class MainWindow(QMainWindow):
         self._image_task = None
         self._set_image_busy(False)
         if task.cancelled:
-            self.statusBar().showMessage("Апскейл остановлен; незавершённая пара не сохранена.", 7000)
+            self.statusBar().showMessage(tr("Апскейл остановлен; незавершённая пара не сохранена."), 7000)
         elif task.error is not None:
-            self._error("Операция с изображением не выполнена", task.error)
+            self._error(tr("Операция с изображением не выполнена"), task.error)
         if (task.cancelled or task.error is not None) and on_error is not None:
             on_error()
         elif not task.cancelled and task.error is None:
@@ -900,7 +914,7 @@ class MainWindow(QMainWindow):
     def _cancel_image_task(self):
         if self._image_task is not None:
             self._image_task.cancel()
-            self.statusBar().showMessage("Остановка после текущего тайла RealESRGAN…")
+            self.statusBar().showMessage(tr("Остановка после текущего тайла RealESRGAN…"))
 
     def preview_pair(self):
         doc = self.document
@@ -916,13 +930,13 @@ class MainWindow(QMainWindow):
         try:
             clean, censored = render_pair(snapshot)
         except (OSError, ValueError) as exc:
-            self._error("Ошибка превью", exc)
+            self._error(tr("Ошибка превью"), exc)
             return
         self._show_preview_result(clean, censored, snapshot.caption)
 
     def _show_preview_result(self, clean, censored, caption_text):
         dialog = QDialog(self)
-        dialog.setWindowTitle(f"Превью экспорта · {clean.width} × {clean.height} px")
+        dialog.setWindowTitle(tr("Превью экспорта · {value} × {value2} px", value=clean.width, value2=clean.height))
         layout = QVBoxLayout(dialog)
         columns = QHBoxLayout()
         for title, image in (("CLEAN · TARGET", clean), ("CENSORED · CONTROL", censored)):
@@ -948,10 +962,10 @@ class MainWindow(QMainWindow):
         if doc is None or self._image is None or self._image_task is not None:
             return
         if not doc.bars and not doc.strokes:
-            if QMessageBox.question(self, "Нет разметки", "Полос и штрихов нет: clean и censored будут одинаковыми. Сохранить такую пару?") != QMessageBox.StandardButton.Yes:
+            if QMessageBox.question(self, tr("Нет разметки"), tr("Полос и штрихов нет: clean и censored будут одинаковыми. Сохранить такую пару?")) != QMessageBox.StandardButton.Yes:
                 return
         if not doc.caption.strip():
-            if QMessageBox.question(self, "Пустой капшен", "Сохранить пару с пустым .txt?") != QMessageBox.StandardButton.Yes:
+            if QMessageBox.question(self, tr("Пустой капшен"), tr("Сохранить пару с пустым .txt?")) != QMessageBox.StandardButton.Yes:
                 return
         if not self.session.output_dir and not self.choose_output():
             return
@@ -961,7 +975,7 @@ class MainWindow(QMainWindow):
         if self.new_pair.isChecked():
             doc.export_name = None
         elif doc.export_name:
-            answer = QMessageBox.question(self, "Обновить пару?", f"Перезаписать пару {doc.export_name}? Для другой панели включите «Сохранить как новую пару».")
+            answer = QMessageBox.question(self, tr("Обновить пару?"), tr("Перезаписать пару {value}? Для другой панели включите «Сохранить как новую пару».", value=doc.export_name))
             if answer != QMessageBox.StandardButton.Yes:
                 return
             overwrite = True
@@ -983,9 +997,9 @@ class MainWindow(QMainWindow):
                 if self.document is doc and doc.signature() == expected:
                     doc.export_name, doc.exported_signature = stem, signature
                     self._document_changed()
-                    self.statusBar().showMessage(f"Сохранены x4: clean/{stem}.png, clean/{stem}.txt, censored/{stem}.png", 9000)
+                    self.statusBar().showMessage(tr("Сохранены x4: clean/{stem}.png, clean/{stem}.txt, censored/{stem}.png", stem=stem), 9000)
                 else:
-                    QMessageBox.warning(self, "Документ изменился", f"Пара {stem} сохранена, но текущая разметка изменилась во время апскейла. Она не связана с этим экспортом.")
+                    QMessageBox.warning(self, tr("Документ изменился"), tr("Пара {stem} сохранена, но текущая разметка изменилась во время апскейла. Она не связана с этим экспортом.", stem=stem))
                 self._update_progress(refresh_disk=True)
             self._start_image_task(work, published, restore)
             return
@@ -993,17 +1007,17 @@ class MainWindow(QMainWindow):
             stem = export_pair(doc, Path(self.session.output_dir), overwrite=overwrite)
         except (OSError, ValueError) as exc:
             restore()
-            self._error("Пара не сохранена", exc)
+            self._error(tr("Пара не сохранена"), exc)
             return
         self._update_progress(refresh_disk=True)
         self._document_changed()
-        self.statusBar().showMessage(f"Сохранены clean/{stem}.png, clean/{stem}.txt, censored/{stem}.png", 9000)
+        self.statusBar().showMessage(tr("Сохранены clean/{stem}.png, clean/{stem}.txt, censored/{stem}.png", stem=stem), 9000)
 
     def _refresh_grok(self):
         available = bool(self.grok.available)
         self.ask_button.setEnabled(available and self._image is not None)
-        self.grok_hint.setText("Изображение отправляется по кнопке «Отправить в Grok»." if available
-                               else "Grok выключен или вход не выполнен. Войдите через xAI OAuth в «Настройки Grok». Локальные инструменты работают без сети.")
+        self.grok_hint.setText(tr("Изображение отправляется по кнопке «Отправить в Grok».") if available
+                               else tr("Grok выключен или вход не выполнен. Войдите через xAI OAuth в «Настройки Grok». Локальные инструменты работают без сети."))
 
     def grok_settings(self):
         self.grok.settings_dialog(self)
@@ -1016,7 +1030,7 @@ class MainWindow(QMainWindow):
         try:
             image, _ = render_pair(replace(doc, upscale=False))
         except (OSError, ValueError) as exc:
-            self._error("Ошибка чтения изображения", exc)
+            self._error(tr("Ошибка чтения изображения"), exc)
             return
         signature = doc.signature()
         crop = doc.crop or Rect(0, 0, self._image.width, self._image.height)
@@ -1026,7 +1040,7 @@ class MainWindow(QMainWindow):
 
         def still_current():
             if self.document is not doc or doc.signature() != signature:
-                QMessageBox.warning(self, "Изображение изменилось", "Ответ относится к предыдущему состоянию. Повторите запрос для текущего изображения.")
+                QMessageBox.warning(self, tr("Изображение изменилось"), tr("Ответ относится к предыдущему состоянию. Повторите запрос для текущего изображения."))
                 return False
             return True
 
@@ -1051,13 +1065,22 @@ class MainWindow(QMainWindow):
 
         self.grok.ask(self, image, doc.caption, apply_caption, apply_bars)
 
+    def _choose_language(self, code):
+        """Persist the choice for the next start; reverting to the running language needs no restart."""
+        save_language(code)
+        if code != current_language():
+            QMessageBox.information(
+                self, tr("Язык"),
+                tr("Язык интерфейса сохранён: {language}. Перезапустите BarForge, чтобы применить его.",
+                   language=LANGUAGE_NAMES[code]))
+
     def show_help(self):
-        QMessageBox.information(self, "Горячие клавиши", "Ctrl+O — открыть папку\nCtrl+L — загрузить сессию\nCtrl+Shift+S — сохранить сессию\nCtrl+S — сохранить пару\nCtrl+P — превью\nCtrl+Shift+A — локальный нейроавтоцензор\nCtrl+Alt+A — автодатасет\nAlt+← / Alt+→ — предыдущий / следующий\n\nПри фокусе на канвасе:\nV — выбор\nB — полоса: первый клик — начало, второй — конец\nP — кисть: протягивание ЛКМ\nC — кроп\nF — вписать\nDelete — удалить выделенную полосу\nEsc — отменить текущий жест\nCtrl+Z / Ctrl+Shift+Z — отмена / повтор\nКолесо — зум; средняя кнопка — панорама\nБоковая кнопка + движение влево/вправо — толщина\n\n✓ — экспорт актуален; ● — экспорт есть, разметка изменена.")
+        QMessageBox.information(self, tr("Горячие клавиши"), tr("Ctrl+O — открыть папку\nCtrl+L — загрузить сессию\nCtrl+Shift+S — сохранить сессию\nCtrl+S — сохранить пару\nCtrl+P — превью\nCtrl+Shift+A — локальный нейроавтоцензор\nCtrl+Alt+A — автодатасет\nAlt+← / Alt+→ — предыдущий / следующий\n\nПри фокусе на канвасе:\nV — выбор\nB — полоса: первый клик — начало, второй — конец\nP — кисть: протягивание ЛКМ\nC — кроп\nF — вписать\nDelete — удалить выделенную полосу\nEsc — отменить текущий жест\nCtrl+Z / Ctrl+Shift+Z — отмена / повтор\nКолесо — зум; средняя кнопка — панорама\nБоковая кнопка + движение влево/вправо — толщина\n\n✓ — экспорт актуален; ● — экспорт есть, разметка изменена."))
 
     def closeEvent(self, event: QCloseEvent):
         if self._image_task is not None:
             self._image_task.cancel()
-            self.statusBar().showMessage("Дождитесь остановки апскейла и закройте окно повторно.")
+            self.statusBar().showMessage(tr("Дождитесь остановки апскейла и закройте окно повторно."))
             event.ignore()
             return
         if self._maybe_save_session():

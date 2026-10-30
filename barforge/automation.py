@@ -11,6 +11,7 @@ import uuid
 import cv2
 import numpy as np
 
+from .i18n import tr
 from .autocensor import CensorOptions, Detection, LocalCensorEngine, CancelledError, _passes, bars_from_detections
 from .imaging import load_rgb
 from .models import Document, Rect, Session, bar_polygon, render_caption_template
@@ -74,15 +75,15 @@ def analyze_source(source: str, engine: LocalCensorEngine, options: CensorOption
 
 def _validate_crops(options: CropOptions) -> None:
     if options.mode not in ("context", "page"):
-        raise ValueError("Режим кропа должен быть «context» или «page»")
+        raise ValueError(tr("Режим кропа должен быть «context» или «page»"))
     if not math.isfinite(options.context) or not 1 <= options.context <= 20:
-        raise ValueError("Множитель контекста должен быть от 1 до 20")
+        raise ValueError(tr("Множитель контекста должен быть от 1 до 20"))
     if not math.isfinite(options.aspect_ratio) or not (options.aspect_ratio == 0 or .1 <= options.aspect_ratio <= 10):
-        raise ValueError("Соотношение сторон: 0 (по области) либо от 0.1 до 10")
-    for name, value, maximum in (("Минимальная сторона", options.min_side, 100000),
-                                  ("Число кропов", options.max_crops, 100)):
+        raise ValueError(tr("Соотношение сторон: 0 (по области) либо от 0.1 до 10"))
+    for name, value, maximum in ((tr("Минимальная сторона"), options.min_side, 100000),
+                                  (tr("Число кропов"), options.max_crops, 100)):
         if isinstance(value, bool) or not isinstance(value, int) or not 1 <= value <= maximum:
-            raise ValueError(f"{name}: ожидается целое число от 1 до {maximum}")
+            raise ValueError(tr("{name}: ожидается целое число от 1 до {maximum}", name=name, maximum=maximum))
 
 
 def _intersection(a: Rect, b: Rect) -> int:
@@ -130,7 +131,7 @@ def prepare_page(page: PageAnalysis, censor: CensorOptions, crops: CropOptions,
     full = Rect(0, 0, width, height)
     windows: list[tuple[Rect, str]] = []
     if crops.mode == "page":
-        windows.append((full, "Вся страница"))
+        windows.append((full, tr("Вся страница")))
     else:
         anchors = list(admitted)
         anchors.sort(key=lambda pair: (-pair[1].confidence, pair[1].rect.y, pair[1].rect.x, pair[0]))
@@ -140,11 +141,11 @@ def prepare_page(page: PageAnalysis, censor: CensorOptions, crops: CropOptions,
                 break
             crop = _context_crop(detection.rect, width, height, crops)
             if crop is not None and not any(_similar(crop, previous) for previous, _ in windows):
-                windows.append((crop, "Контекст области"))
+                windows.append((crop, tr("Контекст области")))
         if crops.include_page:
             # A whole-page request is explicit; suppress only an exact duplicate context crop.
             windows = [(crop, reason) for crop, reason in windows if crop != full]
-            windows.append((full, "Вся страница"))
+            windows.append((full, tr("Вся страница")))
     polygons = [np.asarray(bar_polygon(bar), dtype=np.float32) for bar in bars]
     candidates = []
     for crop, reason in sorted(windows, key=lambda item: (item[0].y, item[0].x, item[0].width, item[0].height)):
@@ -210,7 +211,7 @@ def export_dataset(documents: Sequence[Document], output_dir: str | Path, *, sou
                 save_session(session, session_path)
             except (OSError, ValueError) as exc:
                 # Pair remains valid and is returned for adoption/recovery; stop rather than overstate durability.
-                result.errors.append((str(session_path), f"Пара {document.export_name} сохранена, но сессия не обновлена: {exc}"))
+                result.errors.append((str(session_path), tr("Пара {value} сохранена, но сессия не обновлена: {exc}", value=document.export_name, exc=exc)))
                 break
         if progress is not None:
             progress(index+1, len(snapshots))

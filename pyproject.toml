@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "barforge"
-version = "1.0.0"
+version = "1.1.0"
 description = "Paired clean/control manga dataset editor for AI-Toolkit"
 requires-python = ">=3.10"
 dependencies = [
@@ -24,4 +24,4 @@ barforge = "barforge.app:main"
 include = ["barforge*"]
 
 [tool.setuptools.package-data]
-barforge = ["assets/*.onnx", "assets/*.json", "assets/*LICENSE.txt"]
+barforge = ["assets/*.onnx", "assets/*.json", "assets/*LICENSE.txt", "locales/*.json"]

@@ -12,6 +12,7 @@ import threading
 import cv2
 import numpy as np
 
+from .i18n import tr
 from .models import Rect
 
 _MAX_REGIONS = 32
@@ -185,10 +186,9 @@ def refine_anatomy(pixels, by_head, options, done, progress=None, cancelled=None
             selected.append(region)
     selected = [region for region in selected if ac._passes(region,options)]
     selected.sort(key=lambda item:(item.rect.y,item.rect.x,item.label))
-    notes = ["Полосы ограничены выделенной формой анатомии. Сцены используются только для контекста; "
-             "общие боксы тела не закрашиваются."]
+    notes = [tr("Полосы ограничены выделенной формой анатомии. Сцены используются только для контекста; общие боксы тела не закрашиваются.")]
     if failures:
-        notes.append(f"Не удалось уверенно выделить форму областей: {failures}. Проверьте пропуски вручную.")
+        notes.append(tr("Не удалось уверенно выделить форму областей: {failures}. Проверьте пропуски вручную.", failures=failures))
     if limited:
-        notes.append(f"Уточнение ограничено {_MAX_REGIONS} областями; проверьте оставшиеся вручную.")
+        notes.append(tr("Уточнение ограничено {_MAX_REGIONS} областями; проверьте оставшиеся вручную.", _MAX_REGIONS=_MAX_REGIONS))
     return selected,notes

@@ -1,43 +1,94 @@
 # BarForge
 
 <p align="center">
-  <img src="docs/assets/logo.png" alt="Логотип BarForge" width="320">
+  <img src="docs/assets/logo.png" alt="BarForge logo" width="320">
 </p>
 
-Локальное Python-приложение на PySide6 для подготовки парного датасета редактирования изображений: **clean — target**, **censored — control**. Исходники не изменяются. Программа рисует новые полосы поверх чистого изображения, а не восстанавливает содержимое уже цензурированного исходника.
+BarForge is a local desktop application (Python + PySide6) for preparing **paired image-editing datasets**: a **clean** target image and a **censored** control image that differ only by bars drawn on top. Source images are never modified. The program paints new bars over the clean image; it does not reconstruct content hidden by a source that is already censored.
 
-## Скриншоты
+Everything runs on your machine. The optional Grok assistant is the only feature that can send an image over the network, and only when you press its send button.
 
-### Редактор разметки
+## Screenshots
 
-Список исходников, кроп, полосы, кисть и капшены в главном окне.
+All screenshots show the application working on one sample photo, `single-banana-isolated-white-background.jpg` (7842 × 5313 px), so every feature below can be compared on the same input.
 
-![Главное окно BarForge](docs/assets/editor.png)
+### Markup editor
 
-### Предпросмотр пары
+Source list (JPG, WEBP and PNG side by side), a canvas with straight rotated bars and a freehand brush stroke, and the thickness, angle, color and preset controls. The export block at the bottom holds the dataset folder, **Save as a new pair**, the x4 switch, **Preview** and **Save**.
 
-Сравнение **clean / target** и **censored / control** перед экспортом.
+![Markup editor with bars and a brush stroke](docs/assets/editor.png)
 
-![Предпросмотр clean и censored](docs/assets/preview.png)
+### Non-destructive crop and captions
 
-### Локальная нейроавтоцензура
+The **Crop** tool selects a panel without touching the source; both exported images get the same rectangle. The **Caption** tab holds the text that is saved to `clean/*.txt`, ready-made templates, and **Ask Grok…**.
 
-Настройки поиска областей и предпросмотр исходного кадра. Анализ выполняется локально.
+![Crop tool and the Caption tab](docs/assets/crop-caption.png)
 
-![Диалог нейроавтоцензуры](docs/assets/autocensor.png)
+### Pair preview
 
-### Помощник Grok
+**clean / target** and **censored / control** side by side, exactly as they will be exported, together with the caption.
 
-Подключение xAI OAuth, выбор модели и параметры хранения токена.
+![Clean and censored preview](docs/assets/preview.png)
 
-![Настройки Grok](docs/assets/grok-settings.png)
+### RealESRGAN x4 upscale
 
-## Установка и запуск
+With **RealESRGAN x4 · anime_6B** enabled, both sides of the crop are upscaled by the same local model, so they stay aligned. Below, an 800 × 640 px crop of the stem became 3200 × 2560 px in both images.
 
-Python **3.10+**, Windows / Linux / macOS. GPU не нужен.
+![x4 upscaled pair preview](docs/assets/preview-x4.png)
+
+### Local neural auto-censor
+
+Thresholds, categories and search options. The analysis runs on your machine and nothing is applied until you press **Apply**.
+
+![Auto-censor settings](docs/assets/autocensor.png)
+
+When the networks find nothing, the dialog says so instead of inventing a region. This is the result on the banana photo, which is not something the models flag:
+
+![Auto-censor with no regions found](docs/assets/autocensor-regions.png)
+
+### Auto dataset
+
+A whole folder becomes reviewable crops and bars, which you then check, preview and export as pairs. **Auto crop** sets the context, minimum side, shape and the number of crops per file; **Bars** sets color, thickness, spacing, angle and the random thickness deviation. The other tabs are **Results**, **Search**, **Caption** and **Report**.
+
+![Auto dataset: Auto crop tab](docs/assets/batch-autocrop.png)
+
+![Auto dataset: Bars tab](docs/assets/batch-bars.png)
+
+### Grok assistant (optional)
+
+xAI OAuth sign-in, model selection and token storage options:
+
+![Grok settings](docs/assets/grok-settings.png)
+
+**Ask Grok…** improves the caption, suggests bars or describes the scene. Nothing is sent until you press **Send to Grok**, and every answer is reviewed before it reaches the editor:
+
+![Ask Grok dialog](docs/assets/grok-ask.png)
+
+### Language and shortcuts
+
+The **Language** menu switches between English and Russian; the choice applies after a restart. **Shortcuts** lists every key binding.
+
+![Language menu](docs/assets/language.png)
+
+![Shortcuts help](docs/assets/hotkeys.png)
+
+## Features
+
+- Non-destructive crop, straight or rotated bars, and a freehand brush; every edit has Undo/Redo.
+- Per-image captions with ready-made templates; the bar color is substituted as `white` / `black`.
+- Exact pair export: `clean/NNN.png`, `clean/NNN.txt`, `censored/NNN.png`, identical size and alignment.
+- Optional local **RealESRGAN x4 · anime_6B** upscale of both sides, with a persistent result cache.
+- Local neural auto-censor (two ONNX models, no PyTorch, no GPU) that proposes thin, gapped bars for review.
+- **Auto dataset**: process a whole folder into reviewable crops and bars, then export the selected pairs.
+- Versioned session files (`*.barforge.json`) that hold markup only, never pixels or secrets.
+- User interface in **English** (default) and **Russian**.
+
+## Installation
+
+Python **3.10+** on Windows, Linux or macOS. No GPU is needed.
 
 ```powershell
-# Windows PowerShell, из каталога проекта
+# Windows PowerShell, from the project folder
 python -m venv .venv
 .\.venv\Scripts\python.exe -m pip install -e .
 .\.venv\Scripts\python.exe -m barforge
@@ -50,44 +101,48 @@ python3 -m venv .venv
 .venv/bin/python -m barforge
 ```
 
-Альтернатива: `python -m pip install -r requirements.txt`, затем `python main.py`. После установки пакета доступна команда `barforge`. На Linux нужны системные библиотеки Qt/XCB и OpenGL; запускайте в графической сессии. Для автоматических проверок без экрана можно использовать `QT_QPA_PLATFORM=offscreen`.
+Alternatively run `python -m pip install -r requirements.txt` and then `python main.py`. After installation the `barforge` command is available. On Linux the Qt/XCB and OpenGL system libraries are required and a graphical session is needed; for automated checks without a display set `QT_QPA_PLATFORM=offscreen`.
 
-## Сборка в GitHub Actions
+Prebuilt wheels and source distributions are attached to each [GitHub release](https://github.com/spgsroot/BarForge/releases).
 
-Workflow [`.github/workflows/build.yml`](.github/workflows/build.yml) запускает тесты на Ubuntu и Windows для Python 3.12, затем собирает wheel и source distribution. Готовые файлы из `dist/` доступны в артефакте **barforge-python-packages** на странице успешного запуска Actions. Сборка выполняется для push в `main`, pull request и вручную через **Run workflow**.
+## Language
 
-## Рабочий процесс
+English is the default. To switch, open **Language** in the toolbar and choose **English** or **Русский**. The choice is stored in the application settings and applied the next time BarForge starts, so a window never mixes two languages.
 
-1. **Открыть папку** с PNG/JPG/JPEG/WEBP. Список сортируется естественно (`2` перед `10`); подпапки не сканируются. Фильтр слева скрывает неподходящие имена, не удаляя документы из сессии.
-2. Выбрать **Папка датасета…** — именно корень, не `clean` или `censored`.
-3. При необходимости инструментом **Кроп** выделить панель. Кроп недеструктивный: оба экспортируемых изображения получают один и тот же прямоугольник. Маркеры меняют края кропа, перетаскивание внутри сдвигает его; `Shift` + перетаскивание создаёт новую рамку внутри старой. Сброс кропа возвращает полный исходник.
-4. **Полоса**: клик по началу, затем отдельный второй клик по концу; направление произвольное. **Кисть** (`P`): протягивание ЛКМ создаёт свободный штрих с круглыми концами; до отпускания кнопки он только превью. Цвет и точная толщина общие для полосы и кисти. Зажатая боковая кнопка мыши + движение вправо/влево увеличивает/уменьшает толщину (8 экранных px на 1 px исходника). В **Выбор** полоса перемещается и меняется маркерами. Штрих отменяется одним Undo; **Очистить разметку** удаляет полосы и штрихи одним действием с Undo.
-5. **Нейроавтоцензор…** (`Ctrl+Shift+A`) запускает локальный поиск чувствительных областей: проверьте предложения в отдельном диалоге и примените выбранные полосы. **+ Центр** — отдельный геометрический пресет без нейросети: он просто добавляет указанное число полос в центре изображения/кропа.
-6. На вкладке **Капшен** введите текст или примените шаблон. Цвет: **Белый** → `white`, **Чёрный** → `black`. Каждая страница хранит собственный текст при переключениях; ещё не редактированная страница наследует последний использованный капшен. Уже заполненные страницы не перезаписываются. Загрузка сессии восстанавливает текст буквально и не подставляет в него текущий цвет.
-7. При необходимости включите **RealESRGAN x4 · anime_6B** для текущего документа. **Превью clean / censored** показывает фактический результат экспорта, включая x4; тяжёлый расчёт идёт в фоне и его можно остановить.
-8. **Сохранить пару** создаёт два PNG и UTF-8 `.txt`. Повторное сохранение того же документа требует подтверждения перезаписи. **Сохранить как новую пару** создаёт следующий номер и оставляет прежнюю пару — удобно для нескольких кропов одного исходника.
-9. **Сохранить сессию** сохраняет полосы, штрихи, кропы, капшены, флаги x4, текущую позицию, путь датасета и привязки к экспортам. Перед закрытием или сменой проекта программа предлагает сохранить изменения. Автоматического сохранения нет.
+Translations live in `barforge/locales/en.json`. The Russian source strings in the code are the keys, and `tests/test_i18n.py` fails if any user-visible string lacks an English entry or if a placeholder does not match.
 
-### Шаблоны капшенов
+## Workflow
 
-В подготовленных шаблонах `{color}` заменяется выбранным цветом. Помимо **Общий** и **Без цвета**, доступны четыре типа:
+1. **Open folder** with PNG / JPG / JPEG / WEBP files. The list is sorted naturally (`2` before `10`); subfolders are not scanned. The name filter on the left hides entries without removing them from the session.
+2. Choose **Dataset folder…**: the dataset root, not `clean` or `censored`.
+3. Optionally select a panel with the **Crop** tool. The crop is non-destructive: both exported images receive the same rectangle. Handles move the edges, dragging inside shifts the crop, and `Shift` + drag draws a new frame inside the old one. **Reset crop** restores the full source.
+4. **Bar**: click the start, then click the end as a separate second click; any direction works. **Brush** (`P`): drag with the left mouse button to draw a freehand stroke with round ends; it is only a preview until you release the button. Color and exact thickness are shared by bars and the brush. Hold the mouse side button and move right/left to increase/decrease the thickness (8 screen px per 1 source px). In **Select** a bar is moved or resized with its handles. One stroke is one Undo step; **Clear markup** removes all bars and strokes in one undoable action.
+5. **Neural auto-censor…** (`Ctrl+Shift+A`) searches for sensitive regions locally: review the proposals in a separate dialog and apply the ones you keep. **+ Center** is a separate geometric preset without a network: it simply adds the chosen number of bars at the center of the image or crop.
+6. On the **Caption** tab enter text or apply a template. Color: **White** → `white`, **Black** → `black`. Every page keeps its own text while you navigate; a page that has not been edited inherits the last used caption, and filled pages are never overwritten. Loading a session restores the text literally and does not substitute the current color into it.
+7. Optionally enable **RealESRGAN x4 · anime_6B** for the current document. **Preview** shows the real export result, including x4; the heavy computation runs in the background and can be stopped.
+8. **Save** writes two PNG files and a UTF-8 `.txt`. Saving the same document again asks to confirm the overwrite. **Save as a new pair** takes the next number and keeps the previous pair, which is handy for several crops of one source.
+9. **Save session** stores bars, strokes, crops, captions, x4 flags, the current position, the dataset path and the links to exports. Before closing or switching projects the program offers to save changes. There is no autosave.
 
-| Тип | Шаблон |
+### Caption templates
+
+In the ready-made templates `{color}` is replaced by the chosen bar color. Besides **General** and **No color** there are four types:
+
+| Type | Template |
 |---|---|
-| Пенис | `rustnomiconUncensor. Remove the {color} censor bars, penis, close-up` |
-| Вагина | `rustnomiconUncensor. Remove the {color} censor bars, vagina, close-up` |
-| Анус | `rustnomiconUncensor. Remove the {color} censor bars, anus, close-up` |
-| Проникновение | `rustnomiconUncensor. Remove the {color} censor bars, penetration, penis penetrating vagina` |
+| Penis | `rustnomiconUncensor. Remove the {color} censor bars, penis, close-up` |
+| Vagina | `rustnomiconUncensor. Remove the {color} censor bars, vagina, close-up` |
+| Anus | `rustnomiconUncensor. Remove the {color} censor bars, anus, close-up` |
+| Penetration | `rustnomiconUncensor. Remove the {color} censor bars, penetration, penis penetrating vagina` |
 
-Смена цвета сохраняет тип подготовленного капшена, а не сбрасывает его на общий. Вручную введённый `{color}` тоже подставляется в сохраняемый текст; сам редактор не переписывается. Другие фигурные скобки не интерпретируются. Пользовательский текст без `{color}` автоматически не меняется.
+Changing the color keeps the type of a ready-made caption instead of resetting it to the general one. A `{color}` typed by hand is also substituted into the saved text, while the editor itself is not rewritten. Other curly braces are not interpreted, and custom text without `{color}` is never changed automatically.
 
-### Размер окон и навигация
+### Window size and navigation
 
-Главное окно и диалоги подстраиваются под доступную область экрана с учётом рамки окна. Управление разнесено по вкладкам: в главном окне **Полосы / Капшен**, в автоцензоре **Что закрывать / Полосы / Области**, в настройках Grok — **Вход / О клиенте**.
+The main window and dialogs adapt to the available screen area, including the window frame. Controls are grouped into tabs: **Bars / Caption** in the main window, **What to cover / Bars / Regions** in the auto-censor, **Sign-in / About the client** in the Grok settings.
 
-Прокрутка остаётся у канвасов изображений. Для длинных списков исходников и найденных областей, капшенов и ответов Grok используются кнопки **← / →** с номером страницы: содержимое не обрезается и остаётся доступным без полос прокрутки.
+Scrolling stays with the image canvases. Long lists of sources and regions, captions and Grok answers use **← / →** buttons with a page number, so content is never clipped and is reachable without scroll bars.
 
-### Структура датасета
+### Dataset layout
 
 ```text
 dataset/
@@ -101,13 +156,13 @@ dataset/
     └── 002.png
 ```
 
-Имена последовательные (`001`, `002`, …, `1000`, …), существующие номера не занимаются новым экспортом. PNG-пары имеют одинаковые размеры; без x4 экспорт сохраняет разрешение кропа, с x4 — ровно учетверяет каждую сторону. EXIF-ориентация применяется до рисования; прозрачные изображения компонуются на белом фоне и экспортируются в RGB. Полосы и штрихи обрезаются по границам изображения/кропа.
+Names are sequential (`001`, `002`, …, `1000`, …); an export never takes an existing number. The two PNG files have the same size: without x4 the crop resolution is preserved, with x4 each side is exactly quadrupled. EXIF orientation is applied before drawing; transparent images are composited on white and exported as RGB. Bars and strokes are clipped to the image or crop bounds.
 
-Счётчик показывает число полных пар на диске. Прогресс — число источников, чей последний экспорт соответствует текущей разметке: `✓` — актуален, `●` — после экспорта были изменения. Смена папки датасета сбрасывает привязки к старым экспортам, но не удаляет файлы. Экспортированные раньше кропы остаются на диске; в сессии хранится только текущая разметка каждого источника, а не история всех панелей.
+The counter shows the number of complete pairs on disk. Progress counts sources whose last export matches the current markup: `✓` is up to date, `●` means the markup changed after export. Switching the dataset folder resets links to old exports but deletes no files. Earlier exported crops stay on disk; the session stores only the current markup of each source, not the history of every panel.
 
 ### AI-Toolkit / FLUX.2 Klein
 
-Укажите `clean` как целевые изображения, `censored` — как conditioning/reference. Капшены лежат рядом с target. Фрагмент секции датасета для совместимой версии AI-Toolkit:
+Use `clean` as the target images and `censored` as conditioning/reference. Captions sit next to the targets. A dataset section for a compatible AI-Toolkit version:
 
 ```yaml
 datasets:
@@ -117,183 +172,139 @@ datasets:
     resolution: [512, 768, 1024]
 ```
 
-Это **не полный конфиг обучения**: модель, архитектуру, бакеты и параметры LoRA выберите в своей версии AI-Toolkit. BarForge не запускает обучение и не требует установленного AI-Toolkit. Сопоставление выполняется по одинаковому имени файла. [Руководство BFL по edit-LoRA для Klein](https://huggingface.co/blog/black-forest-labs/flux-2-klein-lora#train-an-edit-lora).
+This is **not a complete training config**: choose the model, architecture, buckets and LoRA parameters in your AI-Toolkit version. BarForge does not start training and does not need AI-Toolkit installed. Files are matched by identical file name. See the [BFL guide to edit-LoRAs for Klein](https://huggingface.co/blog/black-forest-labs/flux-2-klein-lora#train-an-edit-lora).
 
-## RealESRGAN x4 для кропов
+## RealESRGAN x4 for crops
 
-В `barforge/assets/RealESRGAN_x4plus_anime_6B.onnx` включена официальная модель [xinntao/Real-ESRGAN](https://github.com/xinntao/Real-ESRGAN), оптимизированная для anime/манги: **6 RRDB-блоков**, масштаб **×4**. Используются `params_ema` из релиза `v0.2.2.4`. Модель конвертирована в ONNX; **PyTorch и скачивание при запуске не нужны**. Работает локально через ONNX Runtime на CPU, сеть и Grok не используются.
+`barforge/assets/RealESRGAN_x4plus_anime_6B.onnx` is the official [xinntao/Real-ESRGAN](https://github.com/xinntao/Real-ESRGAN) model tuned for anime/manga: **6 RRDB blocks**, scale **×4**, `params_ema` from release `v0.2.2.4`, converted to ONNX. **PyTorch and downloads at startup are not needed.** It runs locally through ONNX Runtime on the CPU; no network and no Grok are involved.
 
-1. Выберите кроп и включите **RealESRGAN x4 · anime_6B** под превью. Флаг сохраняется отдельно для каждого документа и входит в подпись экспорта.
-2. Откройте превью или сохраните пару. Clean и censored обрабатываются независимо одной и той же моделью, поэтому их размеры и координаты остаются выровненными. Пакетный диалог имеет такой же флаг для выбранного кропа.
-3. Дождитесь результата. Прогресс показывает тайлы; **Остановить апскейл** отменяет работу между тайлами. Незавершённая пара не публикуется, уже завершённые пакетные пары и их checkpoint сохраняются.
+1. Select a crop and enable **RealESRGAN x4 · anime_6B** under the preview. The flag is stored per document and is part of the export signature.
+2. Open the preview or save the pair. Clean and censored are processed independently by the same model, so their sizes and coordinates stay aligned. The batch dialog has the same flag for the selected crop.
+3. Wait for the result. Progress counts tiles; **Stop upscale** cancels between tiles. An unfinished pair is never published; batch pairs that are already finished and their checkpoint are kept.
 
-Обработка идёт тайлами **128 px** с перекрытием **48 px**, чтобы ограничить память и уменьшить швы. Правый и нижний края дополняются отражением на 10 px, как в официальном inference. Максимум — **16 777 216 выходных пикселей** на сторону пары (например, 4096×4096); больший кроп нужно уменьшить. Долгий CPU-расчёт выполняется в фоне, но скорость зависит от процессора.
+Processing uses **128 px** tiles with **48 px** overlap to bound memory and reduce seams. The right and bottom edges are padded by reflection by 10 px, as in the official inference. The limit is **16 777 216 output pixels** per side of a pair (for example 4096×4096); a larger crop must be made smaller. The long CPU computation runs in the background, and its speed depends on the processor.
 
-**Кеш апскейла.** Успешный результат каждой стороны (`clean` и `censored`) сохраняется отдельно. Ключ — SHA-256 точных RGB-пикселей участка, размера, SHA-256 ONNX-модели и параметров тайлинга. Поэтому повторное превью, сохранение, сохранение как новой пары и пакетный экспорт того же участка не запускают нейросеть; смена только капшена, имени пары или папки датасета тоже использует кеш. Любое изменение кропа, полос, штрихов, цвета или исходных пикселей даёт новый ключ: `clean` может остаться попаданием, а изменившаяся `censored`-сторона пересчитывается.
+**Upscale cache.** The successful result of each side (`clean` and `censored`) is stored separately. The key is the SHA-256 of the exact RGB pixels, the size, the SHA-256 of the ONNX model and the tiling parameters. A repeated preview, save, save as new pair or batch export of the same region therefore does not run the network; changing only the caption, the pair name or the dataset folder also hits the cache. Any change to the crop, bars, strokes, color or source pixels produces a new key: `clean` can stay a hit while the changed `censored` side is recomputed.
 
-Кеш лежит между запусками: Windows — `%LOCALAPPDATA%\BarForge\cache\realesrgan`, Linux/macOS — `$XDG_CACHE_HOME/barforge/realesrgan` или `~/.cache/barforge/realesrgan`; путь можно задать переменной `BARFORGE_CACHE_DIR`. В памяти держатся 4 последних результата, на диске — PNG до **2 GiB** с удалением самых давно использованных. Запись атомарная; повреждённый или неверного размера файл удаляется и пересчитывается. Отменённый расчёт и ошибка модели в кеш не попадают. Ошибка записи кеша не отменяет готовую пару. Кеш можно удалить вручную — на датасет это не влияет.
+The cache persists between runs: on Windows `%LOCALAPPDATA%\BarForge\cache\realesrgan`, on Linux/macOS `$XDG_CACHE_HOME/barforge/realesrgan` or `~/.cache/barforge/realesrgan`; set `BARFORGE_CACHE_DIR` to change it. The 4 latest results are kept in memory and up to **2 GiB** of PNG files on disk, with the least recently used removed first. Writes are atomic; a corrupted or wrong-size file is deleted and recomputed. A cancelled computation or a model error never enters the cache, and a cache write failure does not cancel a finished pair. You can delete the cache at any time; the dataset is unaffected.
 
-**Это генеративное восстановление, не lossless-ресайз:** модель может перестраивать растровые точки и мелкие штрихи, создавать другую текстуру и артефакты. Для обучения проверяйте превью; исходник никогда не перезаписывается. Grok продолжает получать исходный кроп без x4, чтобы его координаты не смещались.
+**This is generative restoration, not a lossless resize:** the model may rebuild halftone dots and fine strokes and create a different texture and artifacts. Check the preview before training; the source is never overwritten. Grok keeps receiving the original crop without x4 so its coordinates do not shift.
 
-Происхождение, SHA-256 исходных весов и ONNX, архитектура и численная сверка записаны в `barforge/assets/MODELS.json`. Лицензия BSD-3-Clause сохранена в `barforge/assets/REALESRGAN-LICENSE.txt`.
+The origin, SHA-256 of the original weights and the ONNX file, the architecture and the numeric comparison are recorded in `barforge/assets/MODELS.json`. The BSD-3-Clause license is kept in `barforge/assets/REALESRGAN-LICENSE.txt`.
 
-## Сессии и большие папки
+## Sessions and large folders
 
-Сессия — версионированный JSON (`*.barforge.json`), без изображений и секретов. Текущий формат **v2** содержит штрихи и x4; **v1 читается**, при этом старые подписи экспорта документов без новых функций сохраняются. Пути хранятся относительно файла сессии, когда это возможно. Недоступные файлы не удаляются из сессии — восстановите их по сохранённым путям.
+A session is a versioned JSON file (`*.barforge.json`) with no images and no secrets. The current format is **v2** with strokes and x4; **v1 is still read**, and the old export signatures of documents without the new features are preserved. Paths are stored relative to the session file when possible. Unavailable files are not removed from the session: restore them at the saved paths.
 
-В памяти хранится текущее изображение и его отображение, остальные документы содержат только метаданные. Отмена/повтор относятся к геометрии текущего канваса и сбрасываются при переходе к другому исходнику; капшен использует стандартную отмену текстового редактора. Сессия не хранит историю Undo. Очень большие исходники всё равно требуют памяти пропорционально размеру изображения; не уменьшайте их до нанесения полос вне приложения, если нужна точность координат.
+Memory holds the current image and its display; the other documents carry metadata only. Undo/Redo belong to the geometry of the current canvas and are reset when you move to another source; the caption uses the standard undo of the text editor. The session stores no Undo history. Very large sources still need memory proportional to the image size; if coordinate accuracy matters, do not downscale them outside the application before drawing bars.
 
-## Локальный нейроавтоцензор
+## Local neural auto-censor
 
-Не требует Grok, API-ключа, GPU или отправки изображений в интернет. В `barforge/assets/` включены две ONNX-модели общим размером около 126 MB. Специализированная модель рисованных изображений даёт анатомические области; общие боксы гениталий второй модели **не используются для рисования**. Её сцены `make_love` служат только контекстом для уточнения, анус подключается отдельной опцией. GrabCut выделяет foreground внутри анатомического предсказания; полосы ограничиваются его контуром, вогнутостями и крупными фоновыми отверстиями. Модели работают через ONNX Runtime на CPU и переиспользуются между анализами.
+It needs no Grok, no API key, no GPU and sends no image anywhere. Two ONNX models of about 126 MB in total ship in `barforge/assets/`. A specialized model for drawn images produces the anatomical regions; the broad genital boxes of the second model are **never used for painting**. Its `make_love` scenes serve only as context for refinement, and the anus is enabled by a separate option. GrabCut separates the foreground inside an anatomical prediction; bars are confined to its outline, concavities and large background holes. The models run through ONNX Runtime on the CPU and are reused between analyses.
 
-1. Откройте изображение, при необходимости выделите кроп и нажмите **Нейроавтоцензор…**.
-2. Выберите белый/чёрный цвет, **базовую толщину** в пикселях и шаг. По умолчанию включено **Поперёк органа (автоугол)**: у каждой выделенной области собственный угол. Поля **Случайная толщина ±** в главном окне и **Отклонение от / до** в диалогах задают диапазон автоматических линий: по умолчанию **3–8 px**, знак случайный. Допустимы целые **0–64 px**; **0 / 0** отключает вариацию, **4 / 4** даёт **±4 px**. При пересечении границ второе поле сдвигается. Ручная кисть и ручные полосы используют точную толщину без рандомизации; геометрический **+ Центр** также не рандомизируется. Отступ и масштаб меняют зону размещения; пороги анатомии и подсказок сцен задаются отдельно.
-3. Для небольших областей включите анализ фрагментов; для разных ориентаций — проверку поворотов. Это медленнее, но на тестовой манга-странице повороты заметно улучшили поиск.
-4. Запустите анализ. GUI остаётся отзывчивым; обработку можно остановить. Анализируется только текущий кроп, координаты возвращаются в систему исходника.
-5. Снимите отметки с ложных/лишних предложений. Цвет, базовая толщина, диапазон отклонений, шаг и угол меняются по уже найденным областям без повторного запуска нейросетей. Затем добавьте линии к текущим или замените существующие. Вставка отменяется одним Undo.
+1. Open an image, select a crop if needed and click **Neural auto-censor…**.
+2. Choose white or black, the **base thickness** in pixels and the spacing. **Across the organ (auto angle)** is on by default: every detected region gets its own angle. **Random thickness ±** in the main window and **Deviation from / to** in the dialogs set the range of automatic lines: **3–8 px** by default with a random sign. Whole numbers **0–64 px** are allowed; **0 / 0** turns the variation off and **4 / 4** gives **±4 px**. If the bounds cross, the other field follows. The manual brush and manual bars use the exact thickness without randomization, and the geometric **+ Center** is not randomized either. Margin and scale change the placement zone; the anatomy and scene-hint thresholds are set separately.
+3. For small regions enable tile analysis, and for different orientations enable rotation checks. Both are slower, but on a test manga page rotations clearly improved the search.
+4. Run the analysis. The GUI stays responsive and the work can be stopped. Only the current crop is analyzed, and coordinates are returned in the source coordinate system.
+5. Clear the false or unneeded proposals. Color, base thickness, deviation range, spacing and angle change on the regions already found, without running the networks again. Then add the lines to the current ones or replace the existing ones. Insertion is one Undo step.
 
-Режим создаёт **тонкие линии с открытыми промежутками**, а не заливку прямоугольника детекции. По умолчанию: толщина **6 px**, отклонения **3–8 px** со случайным знаком, шаг **48 px**, **автоугол поперёк каждой области**, отступ **0%**. Базовый ручной угол **65°** используется только при выключенном автоугле. Минимальная фактическая толщина — **1 px**; малый шаг или малая область ограничивают вариацию, сохраняя промежутки. Вся прямоугольная полоса должна помещаться внутри выделенной формы, а не только её средняя линия.
+The mode produces **thin lines with open gaps**, not a filled detection rectangle. Defaults: thickness **6 px**, deviations **3–8 px** with a random sign, spacing **48 px**, **auto angle across every region**, margin **0%**. The manual base angle **65°** is used only when auto angle is off. The minimum effective thickness is **1 px**; small spacing or a small region limits the variation so the gaps stay. The whole rectangular bar must fit inside the detected shape, not only its center line.
 
-Повторные предсказания одного foreground объединяются до выбора угла, чтобы не создавать наложенные сетки. Рисунок толщин стабилен при смене цвета и отметок областей; изменение диапазона масштабирует его, а не перемешивает. Длина и количество линий зависят от формы области. После применения можно перемещать линии, менять размеры маркерами и угол через **Угол выбранной**. Фактические толщина и угол каждой полосы сохраняются в сессии и экспорте.
+Repeated predictions of one foreground are merged before the angle is chosen, so no overlapping grids appear. The thickness pattern is stable when you change the color or the region checkmarks; changing the range scales it instead of reshuffling. The length and number of lines depend on the region shape. After applying you can move the lines, resize them with the handles and change the angle with **Angle of the selected bar**. The actual thickness and angle of each bar are stored in the session and the export.
 
-**Ограничение:** детектор не гарантирует полноты и семантической точности, особенно в манге. GrabCut уточняет форму, но сам не распознаёт анатомию. Низкий порог повышает чувствительность и число ложных срабатываний. Если форма не выделилась, область пропускается — широким боксом сцены она не заменяется. Сцены никогда не становятся цензурными масками, даже при включённой опции. Перед публикацией проверяйте ложные области, пропуски и правильность выделенного foreground вручную.
+**Limitation:** the detector does not guarantee completeness or semantic accuracy, especially in manga. GrabCut refines the shape but does not recognize anatomy itself. A low threshold raises sensitivity and the number of false positives. If no shape is found the region is skipped; it is never replaced by a wide scene box. Scenes never become censor masks, even when the option is on. Before publishing, check false regions, misses and the correctness of the detected foreground by hand.
 
-Модели и происхождение: [deepghs/anime_censor_detection](https://huggingface.co/deepghs/anime_censor_detection), [EraX-Anti-NSFW-V1.1](https://huggingface.co/erax-ai/EraX-Anti-NSFW-V1.1). Ревизии, контрольные суммы, параметры ONNX-экспорта и заявленные лицензии находятся в `barforge/assets/MODELS.json`. Карточка EraX указывает Apache-2.0, а экспортёр Ultralytics добавил в ONNX метаданные AGPL-3.0; перед распространением весов проверьте применимые условия обеих сторон. Для работы приложения PyTorch и Ultralytics не нужны.
+Models and origin: [deepghs/anime_censor_detection](https://huggingface.co/deepghs/anime_censor_detection) and [EraX-Anti-NSFW-V1.1](https://huggingface.co/erax-ai/EraX-Anti-NSFW-V1.1). Revisions, checksums, ONNX export parameters and the declared licenses are in `barforge/assets/MODELS.json`. The EraX card states Apache-2.0, while the Ultralytics exporter wrote AGPL-3.0 metadata into the ONNX file; check the terms of both before redistributing the weights. PyTorch and Ultralytics are not needed to run the application.
 
-### Автодатасет: папка → кропы → просмотр → пары
+### Auto dataset: folder → crops → review → pairs
 
-1. Откройте папку исходников и нажмите **Автодатасет…** (`Ctrl+Alt+A`). Можно обработать всю папку либо только текущее изображение. Работа полностью локальная.
-2. На вкладке **Автокроп** настройте контекст, минимальную сторону и форму. По умолчанию кроп следует пропорциям анатомической области с контекстом **1.35×** и минимальной стороной **128 px**, а не рамкам панелей или боксам действий. Квадрат и фиксированные пропорции — отдельные варианты; исходник не растягивается и не увеличивается. Число кропов ограничено; целая страница добавляется только явно.
-3. На вкладках **Полосы**, **Поиск** и **Капшен** настройте стиль, категории, пороги и шаблон. Нажмите **Найти и подготовить**. Каждый завершённый исходник остаётся доступен для просмотра даже после остановки обработки папки.
-4. На вкладке **Результаты** проверьте кропы и полосы, снимите отметки с ложных предложений. Канвас поддерживает полосы двумя кликами, кисть, кроп и Undo/Redo; капшен редактируется отдельно для каждого кандидата. Флаг x4 задаётся для выбранного кропа. **Превью пары** показывает clean/control и капшен, включая фактический x4-результат.
-5. **Перестроить из кеша** заново рассчитывает кропы и полосы без нейросетевого прохода. Оно заменяет ручные правки после подтверждения. Изменения файлов, фрагментов, поворотов или подсказок сцен требуют нового поиска; пороги анатомии, категории и стиль применяются к уже найденным областям.
-6. Выберите папку датасета и нажмите **Экспортировать выбранные**. Сохраняются выровненные `clean/*.png`, `clean/*.txt`, `censored/*.png` и отдельная `batch-*.barforge.json`. Сессия обновляется после каждой опубликованной пары. При отмене или ошибке готовые пары не теряются; восстановите их обычной загрузкой сессии.
-7. Неизменные экспортированные кандидаты повторно не публикуются, в том числе после перестроения из кеша. Изменённый вариант получает новый номер; прежняя пара остаётся. **В редактор** добавляет выбранные документы в основную сессию без неявного экспорта.
+1. Open a source folder and click **Auto dataset…** (`Ctrl+Alt+A`). You can process the whole folder or only the current image. Everything is local.
+2. On the **Auto crop** tab set the context, minimum side and shape. By default a crop follows the proportions of the anatomical region with **1.35×** context and a **128 px** minimum side, not panel frames or action boxes. Square and fixed proportions are separate options; the source is never stretched or enlarged. The number of crops is limited, and the whole page is added only explicitly.
+3. On **Bars**, **Search** and **Caption** configure the style, categories, thresholds and template, then click **Find and prepare**. Every finished source stays available for review even if processing of the folder is stopped.
+4. On **Results** review crops and bars and clear false proposals. The canvas supports two-click bars, the brush, crop and Undo/Redo; the caption is edited separately for each candidate. The x4 flag is set for the selected crop. **Pair preview** shows clean/control and the caption, including the real x4 result.
+5. **Rebuild from cache** recomputes crops and bars without running the networks. It replaces manual edits after confirmation. Changing files, tiles, rotations or scene hints needs a new search; anatomy thresholds, categories and style apply to regions already found.
+6. Choose the dataset folder and click **Export selected**. The aligned `clean/*.png`, `clean/*.txt`, `censored/*.png` and a separate `batch-*.barforge.json` are written. The session is updated after every published pair. On cancel or error finished pairs are kept; restore them by loading the session normally.
+7. Unchanged exported candidates are not published again, including after a rebuild from cache. A changed variant gets a new number and the previous pair stays. **To editor** adds the selected documents to the main session without an implicit export.
 
-Это предложения для проверки, не гарантированно готовая разметка. Области соседних органов, попавшие в кроп, получают те же полосы, что и на полной странице. Автокроп не является распознаванием панелей и не создаёт пары для сцены без найденной анатомии.
+These are proposals for review, not guaranteed finished markup. Neighboring organs that fall into a crop receive the same bars as on the full page. Auto crop is not panel detection, and it creates no pair for a scene where no anatomy was found.
 
-### Подготовленный пример Desktop/test.webp
+## Grok (optional, agentic OAuth)
 
-Исходник конвертирован в `Desktop/test.png` размером **1280 × 1806**. В `Desktop/BarForge-auto/` сохранены:
+Without a completed OAuth sign-in **Ask Grok** is unavailable; loading, markup, preview and export all work locally with no network requests. No API key is needed or used: key entry and reading `XAI_API_KEY` were removed.
 
-- `test_black_small.png`, `test_black_medium.png`, `test_black_large.png`;
-- `test_white_small.png`, `test_white_medium.png`, `test_white_large.png`;
-- одноимённые `*.barforge.json` — редактируемая разметка каждого варианта, ссылающаяся на `../test.png`;
-- `test_black_auto.png`, `test_white_auto.png` и `detections.json` — исходный результат автоматического прохода;
-- `reviewed.json` — явная история отбора кандидатов для готовых вариантов.
+1. Open **Grok settings…**, enable the assistant and pick a model your account can use with image support. The model name is editable because model availability changes.
+2. Choose the **OS secure storage** to keep the sign-in between launches, or **Until the program closes**. If secure storage is unavailable the sign-in is possible only until the program closes; plaintext files are never used.
+3. Click **Sign in with xAI OAuth**. The official xAI page opens in the browser. Compare the displayed device code, sign in and approve access. Use the dialog buttons to copy the code or reopen the page.
+4. Wait for the sign-in confirmation in the application and click **Save**. Waiting happens in the background and an unfinished sign-in can be canceled. Closing the settings cancels a pending sign-in, and a late answer does not save a session.
+5. Click **Ask Grok…**. Choose caption generation/improvement, bar suggestions or a short neutral description of the scene and anatomy, then **Send to Grok**. There is no extra consent checkbox. Signing in and opening the image dialog send nothing; an answer is applied with a separate button after you review it.
 
-При пороге 0.12 модели дали **14 кандидатов**. После ручной проверки оставлены **5 областей**; новые координаты в детектор не зашивались. Варианты `small` / `medium` / `large` используют линии **4 / 6 / 8 px**, шаг **44 / 52 / 60 px** и угол **65°**. Это частичная художественная цензура: между линиями исходник остаётся виден. Отдельных положительных детекций `make_love` на этом примере не было: варианты созданы по анатомическим областям. Исходные WEBP и PNG не заменялись цензурированным результатом.
+**Client identity:** the public **Grok CLI** OAuth client used by agentic harnesses, not a BarForge registration of its own. Authorization is a real device-code flow through `auth.x.ai`; the browser page is `accounts.x.ai`. The application does not read cookies and does not ask for the xAI password. You must approve the sign-in explicitly on the provider page.
 
-Эти сохранённые примеры созданы до добавления вариации толщины и не переписываются автоматически. Вариация применяется при новой генерации полос в нейроавтоцензоре; ручное рисование и уже сохранённая разметка не изменяются.
+**xAI decides access:** a successful authorization does not guarantee that the selected subscription/account can use the inference API or every model. On `403` the application shows the refusal; it does not bypass limits and does not substitute an API key. Requests consume the quota available to your account; OAuth does not mean free or unlimited access.
 
+Secrets are stored only in the permitted secure OS keyring backends or in process memory. The JSON settings keep only the integration switch and the model; a dataset session never contains tokens. When a refresh token exists, that one is stored in the keyring and the short-lived access token is renewed when needed. Refreshing is serialized and keeps refresh-token rotation. The session-only mode deletes an earlier persistent OAuth entry so it cannot come back after a restart.
 
-## Grok — опционально, через агентный OAuth
+**Sign out** forgets the local OAuth session and asks xAI to revoke access. If the provider is unavailable or the keyring refuses deletion, the application says so; after a failed remote revocation you can revoke access in your xAI account. Turning the assistant off is not a sign-out.
 
-Без выполненного OAuth-входа **Спросить Grok** недоступна; загрузка, разметка, превью и экспорт работают локально без сетевых запросов. API-ключ не нужен и не используется: ввод ключа и чтение `XAI_API_KEY` удалены.
+The clean current image **or the current crop** is sent, never the whole set. The request uses HTTPS `https://api.x.ai/v1/responses`, an OAuth Bearer access token, the image as a data URL and `store: false`. Image preparation, requests, sign-in, refresh and revocation all run in the background. A caption and bar suggestions are shown for review first and applied with separate buttons; the scene description never changes the caption by itself. Suggested coordinates are converted to pixels of the current crop, and a stale answer is never applied to a modified document.
 
-1. Откройте **Настройки Grok…**, включите помощника и выберите доступную вашему аккаунту модель с поддержкой изображений. Название модели редактируемое: доступность моделей меняется.
-2. Выберите **защищённое хранилище ОС** для сохранения входа между запусками либо **только на время сессии**. Если безопасное хранилище недоступно, вход возможен только до закрытия программы; plaintext-файлы не используются.
-3. Нажмите **Войти через xAI OAuth**. Откроется официальная страница xAI в браузере. Сверьте показанный код устройства, войдите в аккаунт и подтвердите доступ. При необходимости скопируйте код или повторно откройте страницу кнопками диалога.
-4. Дождитесь подтверждения входа в приложении и нажмите **Сохранить**. Ожидание выполняется в фоне; незавершённый вход можно отменить. Закрытие настроек отменяет ожидающий вход, поздний ответ не сохраняет сессию.
-5. Нажмите **Спросить Grok…**. Выберите генерацию/улучшение капшена, предложения полос либо краткое нейтральное описание сцены и анатомии, затем **Отправить в Grok**. Дополнительной галочки согласия нет. Сам OAuth-вход и открытие диалога изображения не отправляют; ответ применяется отдельной кнопкой после проверки.
+Before sending, make sure you may pass the image to an external service and that it complies with its rules. `store: false` does not replace the xAI data-processing terms.
 
-**Идентичность клиента:** используется публичный OAuth-клиент **Grok CLI**, применяемый агентными харнессами, а не собственная регистрация BarForge. Авторизация — настоящий device-code flow через `auth.x.ai`; браузерная страница — `accounts.x.ai`. Приложение не читает cookie и не запрашивает пароль xAI. Пользователь должен явно одобрить вход на странице провайдера.
+Contract and sources: [official xAI OIDC discovery](https://auth.x.ai/.well-known/openid-configuration), [agentic OAuth in Hermes](https://hermes-agent.nousresearch.com/docs/guides/xai-grok-oauth), [image understanding](https://docs.x.ai/developers/model-capabilities/images/understanding) and the [Responses API](https://docs.x.ai/developers/rest-api-reference/inference/responses).
 
-**Доступ определяет xAI:** успешная авторизация не гарантирует доступ выбранной подписки/аккаунта к inference API или каждой модели. При `403` приложение показывает отказ; оно не обходит ограничения и не подставляет API-ключ. Запросы расходуют доступную вашему аккаунту квоту; OAuth не означает бесплатный или неограниченный доступ.
+## Keyboard shortcuts
 
-Секреты хранятся только в разрешённых защищённых backend keyring ОС или в памяти процесса. В JSON-настройках остаются лишь включение интеграции и модель; в сессии датасета токенов нет. При наличии refresh-токена именно он сохраняется в keyring, а короткоживущий access-токен возобновляется при необходимости. Обновление выполняется последовательно, с сохранением ротации refresh-токена. Режим «только на время сессии» удаляет прежнюю постоянную OAuth-запись, чтобы она не восстановилась после перезапуска.
-
-**Выйти** забывает локальную OAuth-сессию и запрашивает отзыв доступа в xAI. Если провайдер недоступен или keyring не разрешил удаление, приложение сообщает об этом; при неудачном удалённом отзыве доступ можно отозвать в аккаунте xAI. Выключение помощника само по себе не является выходом.
-
-Отправляется чистое текущее изображение **или текущий кроп**, а не весь набор. Используется HTTPS `https://api.x.ai/v1/responses`, OAuth Bearer access token, изображение как data URL и `store: false`. Подготовка изображения, запросы, вход, обновление и отзыв токенов выполняются в фоне. Капшен и предложения полос сначала показываются для проверки и применяются отдельными кнопками; описание сцены само не меняет капшен. Координаты предложений переводятся в пиксели текущего кропа; устаревший ответ не применяется к изменённому документу.
-
-Перед отправкой убедитесь, что имеете право передавать изображение внешнему сервису и оно соответствует его правилам. `store: false` не заменяет условия обработки данных xAI.
-
-Контракт и источники: [официальный OIDC discovery xAI](https://auth.x.ai/.well-known/openid-configuration), [агентный OAuth в Hermes](https://hermes-agent.nousresearch.com/docs/guides/xai-grok-oauth), [image understanding](https://docs.x.ai/developers/model-capabilities/images/understanding), [Responses API](https://docs.x.ai/developers/rest-api-reference/inference/responses).
-
-## Горячие клавиши
-
-| Клавиши | Действие |
+| Keys | Action |
 |---|---|
-| `Ctrl+O` | Открыть папку |
-| `Ctrl+L` | Загрузить сессию |
-| `Ctrl+Shift+S` | Сохранить сессию |
-| `Ctrl+S` | Сохранить пару |
-| `Ctrl+P` | Превью пары |
-| `Ctrl+Shift+A` | Локальный нейроавтоцензор |
-| `Ctrl+Alt+A` | Автодатасет: поиск, кропы, просмотр и пакетный экспорт |
-| `Alt+←`, `Alt+→` | Предыдущий / следующий видимый файл |
-| `V`, `B`, `P`, `C` | Выбор, полоса, кисть, кроп (фокус на канвасе) |
-| `F` | Вписать изображение (фокус на канвасе) |
-| `Delete` | Удалить выделенную полосу (фокус на канвасе) |
-| `Ctrl+Z`, `Ctrl+Shift+Z` | Отмена / повтор геометрии (фокус на канвасе) |
-| Колесо мыши | Зум вокруг курсора |
-| Средняя кнопка + перетаскивание | Панорамирование |
-| Боковая кнопка + движение влево/вправо | Уменьшение / увеличение общей толщины полосы и кисти |
-| `Shift` + колесо / `Alt` + колесо | Горизонтальная / вертикальная прокрутка |
-| `Esc` | Отменить незавершённую полосу / текущий жест или снять выделение |
+| `Ctrl+O` | Open folder |
+| `Ctrl+L` | Load session |
+| `Ctrl+Shift+S` | Save session |
+| `Ctrl+S` | Save pair |
+| `Ctrl+P` | Pair preview |
+| `Ctrl+Shift+A` | Local neural auto-censor |
+| `Ctrl+Alt+A` | Auto dataset: search, crops, review and batch export |
+| `Alt+←`, `Alt+→` | Previous / next visible file |
+| `V`, `B`, `P`, `C` | Select, bar, brush, crop (canvas focused) |
+| `F` | Fit the image (canvas focused) |
+| `Delete` | Delete the selected bar (canvas focused) |
+| `Ctrl+Z`, `Ctrl+Shift+Z` | Undo / redo geometry (canvas focused) |
+| Mouse wheel | Zoom around the cursor |
+| Middle button + drag | Pan |
+| Side button + move left/right | Decrease / increase the shared bar and brush thickness |
+| `Shift` + wheel / `Alt` + wheel | Horizontal / vertical scroll |
+| `Esc` | Cancel an unfinished bar / the current gesture, or clear the selection |
 
-Буквенные команды не перехватывают ввод в капшене.
+Letter shortcuts never intercept typing in the caption.
 
-## Структура кода
+## Code layout
 
-- `barforge/app.py` — запуск, оформление Qt.
-- `barforge/main_window.py` — `MainWindow`, workflow и превью.
-- `barforge/ui.py` — ограничение размеров окон экраном и постраничная навигация по длинным спискам и текстам.
-- `barforge/canvas.py` — `ImageCanvas`, графические элементы и интерактивная геометрия.
-- `barforge/models.py` — `Document`, `Bar`, `BrushStroke`, `Rect`, `Session`, проверка актуальности экспорта.
-- `barforge/imaging.py` — Pillow/OpenCV, ориентация, кроп, растеризация полос и кисти, автопресет.
-- `barforge/storage.py` — поиск файлов, версионирование сессий и безопасная запись пар.
-- `barforge/autocensor.py` — двухмодельный ONNX-поиск, фрагменты/повороты и ограниченные foreground полосы.
-- `barforge/anatomy.py` — отделение анатомических предсказаний от сцен, GrabCut, контуры, отверстия и объединение повторных foreground.
-- `barforge/automation.py` — кеш анализа страницы, контекстные кропы, цензура соседних областей и восстанавливаемый пакетный экспорт.
-- `barforge/automation_ui.py` — фоновая очередь папки, просмотр/правка кандидатов и публикация выбранных пар.
-- `barforge/autocensor_ui.py` — асинхронный анализ, просмотр кандидатов и применение выбранных полос.
-- `barforge/upscale.py` — официальный RealESRGAN_x4plus_anime_6B через ONNX Runtime, тайлы и отмена.
-- `barforge/upscale_ui.py` — фоновые x4-превью и одиночный экспорт без блокировки Qt.
-- `barforge/grok.py` — OAuth-транспорт xAI, разбор ответа и несекретные настройки.
-- `barforge/xai_oauth.py` — device-code вход, защищённое хранение, обновление и отзыв OAuth-сессии.
-- `barforge/grok_ui.py` — настройки OAuth, фоновые задания и просмотр ответов.
+- `barforge/app.py`: startup and Qt styling.
+- `barforge/i18n.py` and `barforge/locales/`: translation lookup and the English catalog.
+- `barforge/main_window.py`: `MainWindow`, the workflow and previews.
+- `barforge/ui.py`: keeps windows within the screen and pages long lists and texts.
+- `barforge/canvas.py`: `ImageCanvas`, graphics items and interactive geometry.
+- `barforge/models.py`: `Document`, `Bar`, `BrushStroke`, `Rect`, `Session` and export freshness checks.
+- `barforge/imaging.py`: Pillow/OpenCV, orientation, crop, bar and brush rasterization, auto preset.
+- `barforge/storage.py`: file discovery, session versioning and safe pair writing.
+- `barforge/autocensor.py`: two-model ONNX search, tiles/rotations and confined foreground bars.
+- `barforge/anatomy.py`: separates anatomical predictions from scenes, GrabCut, outlines, holes and merging of repeated foregrounds.
+- `barforge/automation.py`: page analysis cache, context crops, neighbor-region censoring and recoverable batch export.
+- `barforge/automation_ui.py`: background folder queue, candidate review/editing and publishing of selected pairs.
+- `barforge/autocensor_ui.py`: asynchronous analysis, candidate review and applying the selected bars.
+- `barforge/upscale.py`: official RealESRGAN_x4plus_anime_6B through ONNX Runtime, tiling and cancellation.
+- `barforge/upscale_ui.py`: background x4 previews and single export without blocking Qt.
+- `barforge/grok.py`: xAI OAuth transport, response parsing and non-secret settings.
+- `barforge/xai_oauth.py`: device-code sign-in, secure storage, refresh and revocation of the OAuth session.
+- `barforge/grok_ui.py`: OAuth settings, background jobs and answer review.
 
-Обработка изображений не зависит от GUI; сцена не используется как источник экспортируемого PNG. Секреты не входят в модель сессии.
+Image processing does not depend on the GUI, and the scene is never the source of an exported PNG. Secrets are not part of the session model.
 
-## Проверки
+## Tests and CI
 
-Поведенческие проверки тонких линий с промежутками, поворотов, кропа, сессий, отката неудачной перезаписи, безопасного разбора ответа Grok, OAuth и Qt-диалогов запускаются стандартным `unittest`:
+Behavioral tests cover thin gapped lines, rotations, crops, sessions, rollback of a failed overwrite, safe parsing of Grok answers, OAuth, the Qt dialogs and the localization catalog. They run with the standard `unittest`:
 
 ```bash
 python -m unittest discover -s tests -v
 ```
 
-Проверено: **74 теста проходят**. Регрессии покрывают анатомические полосы, диапазоны вариации, капшены между страницами и при загрузке, кисть с Undo/Redo, боковые кнопки мыши, сессии v1/v2, одиночный и пакетный x4-экспорт, кеш апскейла, отмену без частичной пары, Grok и OAuth. История прежних проверок приведена ниже.
-
-Официальный RealESRGAN сконвертирован из `params_ema` и сверен с PyTorch на входе **53×37**: выход **212×148**, максимальная абсолютная ошибка **7.75×10⁻⁷**. На реальном кропе **539×454** получены выровненные **2156×1816** clean/control; PNG совпали с рендером, капшен и сессия с кистью/x4 восстановились, SHA-256 исходника не изменился. Перекрытие **48 px** выбрано по замерам: на контрольном кропе средняя разница с однопроходным inference — **0.000263**, максимум — **2 уровня канала**; с исходными 10 px отличия были заметно больше. Полный контрольный сценарий занял **42.56 с** на CPU, включая экспорт и сравнение.
-
-Кеш проверен на настоящей RealESRGAN: первое превью **100×80** — **2 ONNX-тайла, 0.703 с**; второе превью, сохранение того же участка и сохранение с изменённым капшеном — **0 тайлов** (мгновенно из памяти); новый процесс читает оба PNG с диска за **0.047 с**, без inference. В кеше два файла, всего около **123 KB**.
-
-Настоящий Qt-прогон подтвердил наследование и возврат капшенов, кисть до отпускания/после, один шаг Undo/Redo, изменение толщины зажатой `XButton1`, фактическое x4-превью и экспорт **40×30 → 160×120**, значения диапазона **±2…±5 px** и неизменность исходника. Главное окно помещается в **1024×720** и **1280×720** без прокрутки вне канвасов; heartbeat Qt продолжался во время расчёта.
-
-Исправленный конвейер проверен настоящими ONNX-моделями на всех **20 исходниках** указанной манга-папки: **44 предложения**, после визуального отбора сохранено **29 пар** в `Desktop/BarForge-auto-519618-corrected/`. Для каждой пары проверены совпадение clean с исходным кропом, точное соответствие PNG текущей разметке, капшен и загрузка сессии. Изменённые пиксели остаются внутри предсказанного foreground с допуском 1 px на растеризацию; это геометрическая проверка, **не гарантия семантической точности**. SHA-256 всех 20 исходников остались прежними. Старый автоматический каталог и эталонный датасет не перезаписывались.
-
-Сопоставление с 16 пользовательскими эталонными кропами выявило пропуски: при пороге 12% автоматические полосы появились в **9 из 16** кропов; **002, 007, 008, 009, 012, 013, 014** пропущены. Среди 44 предложений также были ложные объекты, исключённые при просмотре. Результаты нельзя считать полностью автоматической готовой разметкой. В новом каталоге сохранены `analysis.json`, `review.json`, `automation-report.json`, `reference-check.json`, `reference-comparison.png` и восстанавливаемая `batch-*.barforge.json`; координаты эталонов не зашиваются в приложение.
-
-В настоящем GUI проверены отдельные поперечные углы областей, переключение на ручные 37° и обратно без нового инференса, применение полос, пакетная правка кропа и Undo/Redo, экспорт, восстановление сессии, отсутствие повторных пар после перестроения, остановка и закрытие во время анализа. Одиночный автоцензор и пакетный диалог проверены при **1024 × 720** и **1280 × 720 px**, без полос прокрутки вне канвасов; Qt-таймер продолжал работать во время анализа.
-
-### История предыдущих проверок
-
-Последний GUI-прогон проверил главное окно, автоцензор, состояния OAuth и все три задачи Grok в рамках **1024 × 720** и **1280 × 720 px**. Проверены доступность управляющих элементов без полос прокрутки вне канвасов, страницы **120 исходников**, длинных капшенов и ответов, экспорт **10 `.txt`**, четыре анатомических шаблона в обоих цветах и сохранение типа при смене цвета и применении автоцензуры. Диапазоны **2–5**, **0–0** и **4–4** пересчитывались без нового анализа. Области и ответы xAI в этом прогоне были явно синтетическими; OAuth и запросы проходили через настоящий локальный HTTP-сервер, без реального входа в аккаунт и inference xAI.
-
-Рисование двумя кликами проверено в настоящем GUI: отдельный первый клик и превью без изменения документа, второй клик с сохранением направления, вертикальная чёрная полоса снизу вверх, отмена `Esc`, один шаг Undo/Redo, перемещение наклонной полосы и прежнее протягивание кропа. Экспортированная пара **510 × 450 px** сохранила наклон **36.42°**, сессия восстановила геометрию, исходный PNG остался побайтно неизменным. Регрессии также проверяют совпадающие точки и сброс первой точки при смене инструмента/изображения.
-
-Вариация дополнительно проверена в GUI на явно синтетических областях, без повторной проверки нейросетевого поиска: изменение цвета и отметок не перемешало толщины, изменение базовой толщины сохранило индивидуальные отклонения, повторный анализ не запускался. Превью, применённые **22 полосы**, экспорт **720 × 640 px** и восстановленная сессия сохранили фактические толщины; исходник не изменён.
-
-На `test.png` выполнен настоящий двухмодельный проход с фрагментами и поворотами. Готовый белый `medium` содержит **53 линии по 6 px**, шаг **52 px**, угол **65°**; изменено около **3.6% пикселей** исходника вместо сплошной заливки. Все шесть готовых вариантов пересозданы; PNG-исходник остался побайтно неизменным.
-
-OAuth дополнительно проверен в настоящем GUI через локальный HTTP-сервер: отмена и повторный вход, отображение device code, обновление и ротация токенов, три задачи Grok, кроп **180 × 140 px**, проверка ответа перед применением, выход с отзывом, отказ `403` без подстановки ключа и отключение кнопки после `401`. Во время сценария Qt-таймер продолжал работать.
-
-Отправка Grok без галочки согласия проверена в настоящем диалоге через локальный HTTP-сервер: открытие окна ничего не отправляет, одно нажатие «Отправить в Grok» делает один запрос, результат не применяется до отдельного нажатия кнопки применения.
-
-Код приложения также получил **настоящий device code от xAI** через live discovery и device endpoint: HTTP 200, страница подтверждения `accounts.x.ai`, интервал опроса 5 секунд; неподтверждённый вход затем отменён. В Диспетчере учётных данных Windows отдельно проверены сохранение и восстановление фиктивного refresh-токена в уникальной тестовой записи; запись удалена, пользовательские учётные данные не затрагивались. **Подтверждение входа в реальный аккаунт и реальный inference xAI не выполнялись** — для этого требуется одобрение пользователя на странице xAI.
-
-Ранее также проверены зум, панорамирование и превью пар. Временные проверочные сценарии удаляются после прогона; постоянные регрессионные проверки остаются в `tests/`.
+The GitHub Actions workflow [`.github/workflows/build.yml`](.github/workflows/build.yml) runs the suite on Ubuntu and Windows with Python 3.12, then builds the wheel and the source distribution. The files from `dist/` are available as the **barforge-python-packages** artifact of a successful run. It runs on every push to `main`, on pull requests and manually through **Run workflow**.

@@ -41,7 +41,9 @@ def main() -> int:
     app = QApplication(sys.argv)
     app.setApplicationName("BarForge")
     app.setOrganizationName("BarForge")
-    app.setApplicationVersion("1.0.0")
+    app.setApplicationVersion("1.1.0")
+    from .i18n import initialize_language
+    initialize_language()
     app.setStyle("Fusion")
     palette = QPalette()
     palette.setColor(QPalette.ColorRole.Window, QColor("#181c23"))

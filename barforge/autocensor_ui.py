@@ -49,6 +49,7 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
+from .i18n import current_language, tr
 from .autocensor import (
     MAX_THICKNESS,
     MAX_VARIATION,
@@ -67,14 +68,14 @@ __all__ = ["AutoCensorDialog"]
 _PREVIEW_SIDE = 1280  # longest side of the raster the GUI thread keeps for the preview
 _FLOOR = 0.05  # search threshold of the one model run; the user's thresholds (>= 5 %) filter its result live
 _CATEGORIES = {
-    "genital": "Интимная область",
-    "anus": "Интимная область (сзади)",
-    "nipple": "Соски",
-    "act": "Интимное действие",
+    "genital": tr("Интимная область"),
+    "anus": tr("Интимная область (сзади)"),
+    "nipple": tr("Соски"),
+    "act": tr("Интимное действие"),
 }
-_COLOR_NAMES = {"#ffffff": "Белые полосы", "#000000": "Чёрные полосы"}
-_PRESETS = (("Обычный (24 %)", 24), ("Чувствительный для манги (12 %)", 12))
-_SCALE_PROFILES = (("Компактная зона (90 %)", 90), ("Базовая зона (100 %)", 100), ("Широкая зона (115 %)", 115))
+_COLOR_NAMES = {"#ffffff": tr("Белые полосы"), "#000000": tr("Чёрные полосы")}
+_PRESETS = ((tr("Обычный (24 %)"), 24), (tr("Чувствительный для манги (12 %)"), 12))
+_SCALE_PROFILES = ((tr("Компактная зона (90 %)"), 90), (tr("Базовая зона (100 %)"), 100), (tr("Широкая зона (115 %)"), 115))
 _ERROR_STYLE = "color: #ff7b7b;"
 _PREFERRED_SIZE = (1100, 780)  # on a roomy screen; fit_window shrinks it to the real one
 
@@ -88,7 +89,9 @@ def _hint(text: str) -> QLabel:
 
 
 def _plural(count: int, one: str, few: str, many: str) -> str:
-    """Russian plural form of a noun for ``count``."""
+    """Plural form of a noun for ``count``: English has two forms, Russian three."""
+    if current_language() == "en":
+        return one if count == 1 else few
     if count % 10 == 1 and count % 100 != 11:
         return one
     if 2 <= count % 10 <= 4 and not 12 <= count % 100 <= 14:
@@ -168,10 +171,10 @@ def _failure_text(exc: Exception) -> str:
     """Russian message for a failed analysis; the engine words its own RuntimeError/ValueError for the user."""
     text = str(exc).strip()
     if isinstance(exc, MemoryError):
-        return "Не хватило памяти для анализа. Отключите проверку поворотов и разбиение на фрагменты и повторите."
+        return tr("Не хватило памяти для анализа. Отключите проверку поворотов и разбиение на фрагменты и повторите.")
     if isinstance(exc, (RuntimeError, ValueError)) and text:
         return text
-    return f"Не удалось выполнить анализ ({type(exc).__name__}){': ' + text if text else ''}."
+    return tr("Не удалось выполнить анализ ({value}){value2}.", value=type(exc).__name__, value2=': ' + text if text else '')
 
 
 # ---------------------------------------------------------------- background analysis
@@ -377,7 +380,7 @@ class AutoCensorDialog(QDialog):
     ) -> None:
         super().__init__(parent)
         self.setAttribute(Qt.WidgetAttribute.WA_DeleteOnClose)
-        self.setWindowTitle("Автоцензура — локальная нейросеть")
+        self.setWindowTitle(tr("Автоцензура — локальная нейросеть"))
         self._on_apply = on_apply
         self._engine = engine if engine is not None else _shared_engine()
         # Private copy: the worker reads it on every run while the caller may reuse or close ``image``.
@@ -399,21 +402,21 @@ class AutoCensorDialog(QDialog):
         self.preset_combo = QComboBox()
         for title, percent in _PRESETS:
             self.preset_combo.addItem(title, percent)
-        self.preset_combo.addItem("Свой порог", None)
-        self.preset_combo.setToolTip("Пресет меняет только порог областей; порог действий остаётся прежним.")
+        self.preset_combo.addItem(tr("Свой порог"), None)
+        self.preset_combo.setToolTip(tr("Пресет меняет только порог областей; порог действий остаётся прежним."))
         self.confidence_spin = _spin(
             5, 95, round(defaults.confidence * 100), " %",
-            "Минимальная уверенность нейросети для областей. Ниже — чувствительнее, но больше лишних срабатываний.",
+            tr("Минимальная уверенность нейросети для областей. Ниже — чувствительнее, но больше лишних срабатываний."),
         )
         self.act_confidence_spin = _spin(
-            5, 95, round(defaults.act_confidence * 100), " %", "Порог подсказок сцен для локального поиска, не область рисования."
+            5, 95, round(defaults.act_confidence * 100), " %", tr("Порог подсказок сцен для локального поиска, не область рисования.")
         )
         self.acts_check = _check(
-            "Уточнять поиск по сценам", defaults.include_acts, "Боксы сцен не закрашиваются: они только подсказывают, где искать анатомию."
+            tr("Уточнять поиск по сценам"), defaults.include_acts, tr("Боксы сцен не закрашиваются: они только подсказывают, где искать анатомию.")
         )
-        self.nipples_check = _check("Закрывать соски", defaults.include_nipples, "По умолчанию выключено.")
-        self.anus_check = _check("Закрывать анус (дополнительная модель)", defaults.include_anus,
-                                 "По умолчанию выключено; результаты дополнительной модели требуют проверки.")
+        self.nipples_check = _check(tr("Закрывать соски"), defaults.include_nipples, tr("По умолчанию выключено."))
+        self.anus_check = _check(tr("Закрывать анус (дополнительная модель)"), defaults.include_anus,
+                                 tr("По умолчанию выключено; результаты дополнительной модели требуют проверки."))
 
         # ---- bar style (applied live to the finished search)
         self.color_combo = QComboBox()
@@ -421,51 +424,47 @@ class AutoCensorDialog(QDialog):
             self.color_combo.addItem(_COLOR_NAMES.get(value, value), value)
         self.color_combo.setCurrentIndex(max(0, self.color_combo.findData(color)))
         self.padding_spin = _spin(
-            0, 100, round(defaults.padding * 100), " %", "Запас с каждой стороны, в процентах от размера области."
+            0, 100, round(defaults.padding * 100), " %", tr("Запас с каждой стороны, в процентах от размера области.")
         )
         self.scale_combo = QComboBox()
         for title, percent in _SCALE_PROFILES:
             self.scale_combo.addItem(title, percent)
-        self.scale_combo.addItem("Свой размер", None)
-        self.scale_combo.setToolTip("Меняет только зону размещения; толщина и шаг линий остаются прежними.")
+        self.scale_combo.addItem(tr("Свой размер"), None)
+        self.scale_combo.setToolTip(tr("Меняет только зону размещения; толщина и шаг линий остаются прежними."))
         self.scale_spin = _spin(
-            10, 400, round(defaults.size_scale * 100), " %", "Масштаб зоны, в которой размещаются тонкие линии."
+            10, 400, round(defaults.size_scale * 100), " %", tr("Масштаб зоны, в которой размещаются тонкие линии.")
         )
         self.thickness_spin = _spin(
             1, MAX_THICKNESS, defaults.thickness, " px",
-            "Базовая толщина; отклонение каждой полосы от неё задают границы «Отклонение от» и «до».",
+            tr("Базовая толщина; отклонение каждой полосы от неё задают границы «Отклонение от» и «до»."),
         )
         deviation_tip = (
-            "Отклонение толщины каждой полосы от базовой: целое число px от нижней до верхней границы включительно, "
-            "знак (±) случайный.\nРавные границы дают одно и то же отклонение, 0 и 0 отключают его. "
-            "Если одну границу сдвинуть за другую, вторая сдвинется следом."
+            tr("Отклонение толщины каждой полосы от базовой: целое число px от нижней до верхней границы включительно, знак (±) случайный.\nРавные границы дают одно и то же отклонение, 0 и 0 отключают его. Если одну границу сдвинуть за другую, вторая сдвинется следом.")
         )
         self.variation_min_spin = _spin(0, MAX_VARIATION, defaults.variation_min, " px", deviation_tip)
         self.variation_max_spin = _spin(0, MAX_VARIATION, defaults.variation_max, " px", deviation_tip)
         for spin in (self.variation_min_spin, self.variation_max_spin):
             spin.setPrefix("±")
         self.spacing_spin = _spin(
-            defaults.thickness + 1, 512, defaults.spacing, " px", "Шаг между центрами линий, измеряется поперёк них."
+            defaults.thickness + 1, 512, defaults.spacing, " px", tr("Шаг между центрами линий, измеряется поперёк них.")
         )
         self.angle_spin = _spin(
-            -180, 180, round(defaults.angle), "°", "Ручной угол: применяется только при выключенном автоугле."
+            -180, 180, round(defaults.angle), "°", tr("Ручной угол: применяется только при выключенном автоугле.")
         )
-        self.auto_angle_check = _check("Поперёк органа (автоугол)", defaults.auto_angle,
-                                      "Свой угол для каждой уточнённой анатомической области вместо одной сетки на всю страницу.")
+        self.auto_angle_check = _check(tr("Поперёк органа (автоугол)"), defaults.auto_angle,
+                                      tr("Свой угол для каждой уточнённой анатомической области вместо одной сетки на всю страницу."))
         self.angle_spin.setEnabled(not defaults.auto_angle)
 
         # ---- the search itself (needs a new run)
         self.tiles_check = _check(
-            "Разбивать на фрагменты (точнее, медленнее)",
+            tr("Разбивать на фрагменты (точнее, медленнее)"),
             defaults.tiles,
-            "Дополнительно анализировать перекрывающиеся фрагменты кадра: находятся мелкие области.\n"
-            "Учитывается при следующем нажатии «Найти области».",
+            tr("Дополнительно анализировать перекрывающиеся фрагменты кадра: находятся мелкие области.\nУчитывается при следующем нажатии «Найти области»."),
         )
         self.rotations_check = _check(
-            "Проверять повороты (точнее, медленнее)",
+            tr("Проверять повороты (точнее, медленнее)"),
             defaults.rotations,
-            "Анализировать и повёрнутые копии кадра: помогает с нестандартными позами и рисунком.\n"
-            "Учитывается при следующем нажатии «Найти области».",
+            tr("Анализировать и повёрнутые копии кадра: помогает с нестандартными позами и рисунком.\nУчитывается при следующем нажатии «Найти области»."),
         )
         self._run_widgets = (self.tiles_check, self.rotations_check, self.acts_check, self.act_confidence_spin)
 
@@ -473,74 +472,70 @@ class AutoCensorDialog(QDialog):
         self.detections_list = QListWidget()
         self.detections_list.setEnabled(False)
         self.detections_pages = PageNavigation(self.detections_list)  # page buttons instead of scroll bars
-        self.select_all_button = QPushButton("Отметить все")
-        self.clear_button = QPushButton("Снять все")
+        self.select_all_button = QPushButton(tr("Отметить все"))
+        self.clear_button = QPushButton(tr("Снять все"))
         self.summary_label = _hint("")
         self.replace_check = _check(
-            "Заменить существующие полосы (иначе добавить к ним)",
+            tr("Заменить существующие полосы (иначе добавить к ним)"),
             False,
-            "Включено: все полосы документа заменяются результатом; выключено: результат добавляется.",
+            tr("Включено: все полосы документа заменяются результатом; выключено: результат добавляется."),
         )
 
         # ---- preview, progress, status
         self.preview = _Preview(_preview_raster(self._snapshot, _PREVIEW_SIDE), self._size)
         self.outline_check = _check(
-            "Показывать контуры полос на превью", False, "Только на превью: контуры помогают видеть белые линии на белом."
+            tr("Показывать контуры полос на превью"), False, tr("Только на превью: контуры помогают видеть белые линии на белом.")
         )
         self.progress = QProgressBar()
-        self.progress.setFormat("шаг %v из %m")
+        self.progress.setFormat(tr("шаг %v из %m"))
         self.progress.setVisible(False)
         self.status = QLabel()
         self.status.setWordWrap(True)
         self.status.setTextFormat(Qt.TextFormat.PlainText)
         self.status.setTextInteractionFlags(Qt.TextInteractionFlag.TextSelectableByMouse)
         self.status.setMinimumHeight(self.fontMetrics().lineSpacing() * 2)
-        self.rerun_hint = _hint("Параметры поиска изменены после анализа. Нажмите «Найти области», чтобы учесть их.")
+        self.rerun_hint = _hint(tr("Параметры поиска изменены после анализа. Нажмите «Найти области», чтобы учесть их."))
         self.rerun_hint.setVisible(False)
 
-        self.run_button = QPushButton("Найти области")
-        self.stop_button = QPushButton("Остановить")
-        self.apply_button = QPushButton("Применить")
-        self.apply_close_button = QPushButton("Применить и закрыть")
-        self.close_button = QPushButton("Закрыть")
+        self.run_button = QPushButton(tr("Найти области"))
+        self.stop_button = QPushButton(tr("Остановить"))
+        self.apply_button = QPushButton(tr("Применить"))
+        self.apply_close_button = QPushButton(tr("Применить и закрыть"))
+        self.close_button = QPushButton(tr("Закрыть"))
 
         # ---- layout
         left = QVBoxLayout()
         left.addWidget(
             _hint(
-                f"Кадр: {self._size[0]}×{self._size[1]} px. Анализ идёт локально, на этом компьютере: изображение "
-                "никуда не отправляется. Нейросеть может пропустить область или принять лишнее за область — "
-                "проверьте превью. Ничего не применяется без вашей команды."
+                tr("Кадр: {value}×{value2} px. Анализ идёт локально, на этом компьютере: изображение никуда не отправляется. Нейросеть может пропустить область или принять лишнее за область — проверьте превью. Ничего не применяется без вашей команды.", value=self._size[0], value2=self._size[1])
             )
         )
         left.addWidget(self.preview, 1)
         left.addWidget(self.outline_check)
 
         keep_grid = _grid()
-        keep_grid.addWidget(QLabel("Пресет:"), 0, 0)
+        keep_grid.addWidget(QLabel(tr("Пресет:")), 0, 0)
         keep_grid.addWidget(self.preset_combo, 0, 1, 1, 3)
-        _cell(keep_grid, 1, 0, "Порог областей:", self.confidence_spin)
-        _cell(keep_grid, 1, 2, "Порог сцен:", self.act_confidence_spin)
+        _cell(keep_grid, 1, 0, tr("Порог областей:"), self.confidence_spin)
+        _cell(keep_grid, 1, 2, tr("Порог сцен:"), self.act_confidence_spin)
         keep_grid.addWidget(self.acts_check, 2, 0, 1, 4)
         keep_grid.addWidget(self.nipples_check, 3, 0, 1, 4)
         keep_grid.addWidget(self.anus_check, 4, 0, 1, 4)
-        keep_page = _page(keep_grid, "Порог анатомии и категории — сразу. Подсказки сцен — при новом поиске.")
+        keep_page = _page(keep_grid, tr("Порог анатомии и категории — сразу. Подсказки сцен — при новом поиске."))
         bars_grid = _grid()
-        _cell(bars_grid, 0, 0, "Цвет:", self.color_combo)
-        _cell(bars_grid, 0, 2, "Запас вокруг:", self.padding_spin)
-        _cell(bars_grid, 1, 0, "Размер зоны:", self.scale_combo)
-        _cell(bars_grid, 1, 2, "Масштаб зоны:", self.scale_spin)
-        _cell(bars_grid, 2, 0, "Базовая толщина:", self.thickness_spin)
-        _cell(bars_grid, 2, 2, "Шаг линий:", self.spacing_spin)
-        _cell(bars_grid, 3, 0, "Отклонение от:", self.variation_min_spin)
-        _cell(bars_grid, 3, 2, "до:", self.variation_max_spin)
-        _cell(bars_grid, 4, 0, "Угол вручную:", self.angle_spin)
+        _cell(bars_grid, 0, 0, tr("Цвет:"), self.color_combo)
+        _cell(bars_grid, 0, 2, tr("Запас вокруг:"), self.padding_spin)
+        _cell(bars_grid, 1, 0, tr("Размер зоны:"), self.scale_combo)
+        _cell(bars_grid, 1, 2, tr("Масштаб зоны:"), self.scale_spin)
+        _cell(bars_grid, 2, 0, tr("Базовая толщина:"), self.thickness_spin)
+        _cell(bars_grid, 2, 2, tr("Шаг линий:"), self.spacing_spin)
+        _cell(bars_grid, 3, 0, tr("Отклонение от:"), self.variation_min_spin)
+        _cell(bars_grid, 3, 2, tr("до:"), self.variation_max_spin)
+        _cell(bars_grid, 4, 0, tr("Угол вручную:"), self.angle_spin)
         bars_grid.addWidget(self.auto_angle_check, 4, 2, 1, 2)
         bars_page = _page(
             bars_grid,
-            "Отклонение толщины — целое число px между границами «от» и «до» включительно, знак случайный; "
-            "0 и 0 — без отклонения. Минимум 1 px; на малых областях и при малом шаге отклонение ограничено, "
-            "чтобы сохранялись промежутки.",
+            tr("Отклонение толщины — целое число px между границами «от» и «до» включительно, знак случайный; 0 и 0 — без отклонения. Минимум 1 px; на малых областях и при малом шаге отклонение ограничено, чтобы сохранялись промежутки."),
         )
         list_buttons = QHBoxLayout()
         list_buttons.addWidget(self.select_all_button)
@@ -548,14 +543,14 @@ class AutoCensorDialog(QDialog):
         list_buttons.addStretch(1)
         review_page = QWidget()
         review = QVBoxLayout(review_page)
-        review.addWidget(QLabel("Найденные области (снимите отметку с лишних):"))
+        review.addWidget(QLabel(tr("Найденные области (снимите отметку с лишних):")))
         review.addWidget(self.detections_pages, 1)
         review.addLayout(list_buttons)
         review.addWidget(self.summary_label)
         self.tabs = QTabWidget()
-        self.tabs.addTab(keep_page, "Что закрывать")
-        self.tabs.addTab(bars_page, "Полосы")
-        self.tabs.addTab(review_page, "Области")
+        self.tabs.addTab(keep_page, tr("Что закрывать"))
+        self.tabs.addTab(bars_page, tr("Полосы"))
+        self.tabs.addTab(review_page, tr("Области"))
         self._keep_page, self._review_page = keep_page, review_page
 
         columns = QHBoxLayout()
@@ -615,7 +610,7 @@ class AutoCensorDialog(QDialog):
         hub.finished.connect(self._on_finished)
 
         self._sync_combos()
-        self._show_status("Задайте параметры и нажмите «Найти области». Ничего не применяется без вашей команды.")
+        self._show_status(tr("Задайте параметры и нажмите «Найти области». Ничего не применяется без вашей команды."))
         self._recompute()
         fit_window(self, _PREFERRED_SIZE)
         self.run_button.setFocus()
@@ -676,7 +671,7 @@ class AutoCensorDialog(QDialog):
         ready = not busy and count > 0 and self._delivered != self._delivery_key()
         self.apply_button.setEnabled(ready)
         self.apply_close_button.setEnabled(ready)
-        self.apply_button.setText(f"Применить ({count})" if count else "Применить")
+        self.apply_button.setText(tr("Применить ({count})", count=count) if count else tr("Применить"))
 
     def _sync_combos(self) -> None:
         _sync_combo(self.preset_combo, self.confidence_spin.value())
@@ -719,15 +714,15 @@ class AutoCensorDialog(QDialog):
         except ValueError as exc:
             options = None
             self._bars = []
-            self._show_status(f"Параметры недопустимы: {exc}", error=True)
+            self._show_status(tr("Параметры недопустимы: {exc}", exc=exc), error=True)
         total = len(self._detections)
         if total:
             ticked = sum(1 for row in self._shown if self._wanted[row])
-            summary = f"Отмечено: {ticked} из {len(self._shown)}. Полос к применению: {len(self._bars)}."
+            summary = tr("Отмечено: {ticked} из {value}. Полос к применению: {value2}.", ticked=ticked, value=len(self._shown), value2=len(self._bars))
             if self._bars:
-                summary += f" Толщина: {min(bar.height for bar in self._bars)}–{max(bar.height for bar in self._bars)} px."
+                summary += tr(" Толщина: {value}–{value2} px.", value=min(bar.height for bar in self._bars), value2=max(bar.height for bar in self._bars))
             if len(self._shown) != total:
-                summary += f" Скрыто порогами и категориями: {total - len(self._shown)}."
+                summary += tr(" Скрыто порогами и категориями: {value}.", value=total - len(self._shown))
             self.summary_label.setText(summary)
         else:
             self.summary_label.setText("")
@@ -754,7 +749,7 @@ class AutoCensorDialog(QDialog):
                 if row in shown:
                     number += 1
                     rect = found.rect
-                    category = _CATEGORIES.get(found.kind, "Область")
+                    category = _CATEGORIES.get(found.kind, tr("Область"))
                     score = f"{found.confidence * 100:.0f} %"
                     item.setText(f"{number}. {category} — {score}, {rect.width}×{rect.height} px")
                 item.setCheckState(Qt.CheckState.Checked if self._wanted[row] else Qt.CheckState.Unchecked)
@@ -788,7 +783,7 @@ class AutoCensorDialog(QDialog):
         try:
             options = self._options()
         except ValueError as exc:
-            self._show_status(f"Параметры недопустимы: {exc}", error=True)
+            self._show_status(tr("Параметры недопустимы: {exc}", exc=exc), error=True)
             return
         self._clear_results()
         # Cache every anatomical category at the floor; scene hints retain their own search controls.
@@ -799,12 +794,12 @@ class AutoCensorDialog(QDialog):
         _hub().start(job)
         self._job = job
         self.progress.setRange(0, 0)  # busy until the engine reports its first step
-        self._show_status("Загрузка моделей и анализ… Окно остаётся доступным; анализ можно остановить.")
+        self._show_status(tr("Загрузка моделей и анализ… Окно остаётся доступным; анализ можно остановить."))
         self._refresh()
 
     def _stop(self) -> None:
         if self._drop_job():
-            self._show_status("Анализ остановлен; его результат будет проигнорирован.")
+            self._show_status(tr("Анализ остановлен; его результат будет проигнорирован."))
         self._refresh()
 
     def _drop_job(self) -> bool:
@@ -829,7 +824,7 @@ class AutoCensorDialog(QDialog):
             return
         self.progress.setRange(0, total)
         self.progress.setValue(max(0, min(done, total)))
-        self._show_status("Загрузка моделей…" if done == 0 else f"Анализ: шаг {done} из {total}…")
+        self._show_status(tr("Загрузка моделей…") if done == 0 else tr("Анализ: шаг {done} из {total}…", done=done, total=total))
 
     @Slot(object)
     def _on_finished(self, job: _Job) -> None:
@@ -840,7 +835,7 @@ class AutoCensorDialog(QDialog):
             self._show_status(job.error, error=True)
             self._refresh()
         elif job.result is None:
-            self._show_status("Анализ прерван без результата.", error=True)
+            self._show_status(tr("Анализ прерван без результата."), error=True)
             self._refresh()
         else:
             self._show_result(job.result, job.options)
@@ -866,23 +861,21 @@ class AutoCensorDialog(QDialog):
             )
             rect = found.rect
             item.setToolTip(
-                f"Положение: x {rect.x}, y {rect.y}; размер {rect.width}×{rect.height} px\n"
-                f"Уверенность нейросети: {found.confidence:.3f}"
+                tr("Положение: x {value}, y {value2}; размер {value3}×{value4} px\nУверенность нейросети: {value5:.3f}", value=rect.x, value2=rect.y, value3=rect.width, value4=rect.height, value5=found.confidence)
             )
             lst.addItem(item)
         lst.blockSignals(False)
         count = len(self._detections)
-        spent = f"Готово за {result.elapsed_seconds:.1f} с"
+        spent = tr("Готово за {value:.1f} с", value=result.elapsed_seconds)
         if count:
             lines = [
-                f"{spent}. Найдено кандидатов: {count} (поиск идёт с порогом {round(_FLOOR * 100)} %); "
-                "в списке — те, что проходят ваши пороги."
+                tr("{spent}. Найдено кандидатов: {count} (поиск идёт с порогом {value} %); в списке — те, что проходят ваши пороги.", spent=spent, count=count, value=round(_FLOOR * 100))
             ]
         else:
-            lines = [f"{spent}: областей не найдено даже при пороге {round(_FLOOR * 100)} %."]
-        technical = [f"Окон анализа: {result.views}"]
+            lines = [tr("{spent}: областей не найдено даже при пороге {value} %.", spent=spent, value=round(_FLOOR * 100))]
+        technical = [tr("Окон анализа: {value}", value=result.views)]
         if result.model_names:
-            technical.append("модели: " + ", ".join(result.model_names))
+            technical.append(tr("модели: ") + ", ".join(result.model_names))
         lines.append("; ".join(technical) + ".")
         lines.extend(result.warnings)
         self._show_status("\n".join(lines))
@@ -900,7 +893,7 @@ class AutoCensorDialog(QDialog):
             return
         if self._on_apply(self.bars, self.replace_check.isChecked()) is False:
             self._show_status(
-                "Редактор не принял результат (кадр или документ изменились). Ничего не применено.", error=True
+                tr("Редактор не принял результат (кадр или документ изменились). Ничего не применено."), error=True
             )
             return
         self._delivered = key
@@ -908,6 +901,6 @@ class AutoCensorDialog(QDialog):
             self.accept()
             return
         count = len(self._bars)
-        how = "существующие заменены" if self.replace_check.isChecked() else "добавлены к существующим"
-        self._show_status(f"Передано в редактор: {count} {_plural(count, 'полоса', 'полосы', 'полос')} ({how}).")
+        how = tr("существующие заменены") if self.replace_check.isChecked() else tr("добавлены к существующим")
+        self._show_status(tr("Передано в редактор: {count} {value} ({how}).", count=count, value=_plural(count, tr("полоса"), tr("полосы"), tr("полос")), how=how))
         self._refresh()

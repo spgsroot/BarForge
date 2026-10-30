@@ -50,6 +50,7 @@ from PySide6.QtGui import (
 )
 from PySide6.QtWidgets import QGraphicsScene, QGraphicsView, QWidget
 
+from .i18n import tr
 from .models import BAR_COLORS, Bar, BrushStroke, Document, Rect, bar_polygon
 
 __all__ = ["ImageCanvas", "TOOLS"]
@@ -103,10 +104,10 @@ _HANDLE_CURSORS = {
 }
 
 _TOOL_HINTS = {
-    "select": "Выбор: клик — выделить полосу, перетаскивание — переместить, квадратные маркеры — ширина и толщина, Delete — удалить",
-    "bar": "Полоса: первый клик — начало, второй — конец; направление по двум точкам, толщина — настройкой кисти; Esc — отмена",
-    "crop": "Кроп: нарисуйте рамку; маркеры двигают края, перетаскивание внутри — сдвиг, Shift — новая рамка поверх старой",
-    "brush": "Кисть [P]: протягивание ЛКМ рисует штрих текущего цвета и толщины; один штрих — один Undo; Esc — отмена",
+    "select": tr("Выбор: клик — выделить полосу, перетаскивание — переместить, квадратные маркеры — ширина и толщина, Delete — удалить"),
+    "bar": tr("Полоса: первый клик — начало, второй — конец; направление по двум точкам, толщина — настройкой кисти; Esc — отмена"),
+    "crop": tr("Кроп: нарисуйте рамку; маркеры двигают края, перетаскивание внутри — сдвиг, Shift — новая рамка поверх старой"),
+    "brush": tr("Кисть [P]: протягивание ЛКМ рисует штрих текущего цвета и толщины; один штрих — один Undo; Esc — отмена"),
 }
 
 _BAR_FILL = {name: QColor(*rgb) for name, rgb in BAR_COLORS.items()}
@@ -248,7 +249,7 @@ def _handle_center(name: str, box: Box) -> tuple[float, float]:
 def _normalize_color(color: str) -> str:
     name = str(color).lower()
     if name not in BAR_COLORS:
-        raise ValueError(f"Недопустимый цвет полосы: {color!r} (допустимы #ffffff и #000000)")
+        raise ValueError(tr("Недопустимый цвет полосы: {color!r} (допустимы #ffffff и #000000)", color=color))
     return name
 
 
@@ -260,7 +261,7 @@ def _to_pixmap(image: Image.Image) -> QPixmap:
     # convertToFormat() copies into Qt-owned memory, so ``data`` may be released afterwards.
     pixmap = QPixmap.fromImage(packed.convertToFormat(QImage.Format.Format_RGB32))
     if pixmap.isNull():
-        raise ValueError("Не удалось подготовить изображение к показу (не хватает памяти?)")
+        raise ValueError(tr("Не удалось подготовить изображение к показу (не хватает памяти?)"))
     return pixmap
 
 
@@ -380,7 +381,7 @@ class ImageCanvas(QGraphicsView):
         """
         width, height = image.size
         if width < 1 or height < 1:
-            raise ValueError("Изображение пустое")
+            raise ValueError(tr("Изображение пустое"))
         pixmap = _to_pixmap(image)
         self._end_gesture()
         self._pixmap = pixmap
@@ -393,7 +394,7 @@ class ImageCanvas(QGraphicsView):
         self.viewport().update()
         self._flush_selection()
         if repaired:
-            self.status.emit("Часть геометрии выходила за пределы изображения и была исправлена")
+            self.status.emit(tr("Часть геометрии выходила за пределы изображения и была исправлена"))
             self.changed.emit()
 
     def clear_document(self) -> None:
@@ -426,7 +427,7 @@ class ImageCanvas(QGraphicsView):
 
     def set_tool(self, tool: str) -> None:
         if tool not in TOOLS:
-            raise ValueError(f"Неизвестный инструмент: {tool!r}")
+            raise ValueError(tr("Неизвестный инструмент: {tool!r}", tool=tool))
         self._end_gesture()
         self._side_adjust = None
         self._tool = tool
@@ -450,7 +451,7 @@ class ImageCanvas(QGraphicsView):
             return
         fill = None if color is None else _normalize_color(color)
         if angle is not None and (not math.isfinite(angle) or not -180 <= angle <= 180):
-            raise ValueError("Угол линии должен быть от -180 до 180 градусов")
+            raise ValueError(tr("Угол линии должен быть от -180 до 180 градусов"))
         before = self._capture()
         if thickness is not None:
             height = self._size[1]
@@ -476,7 +477,7 @@ class ImageCanvas(QGraphicsView):
         before = self._capture()
         del self._document.bars[self._index_of(bar)]
         self._selected = None
-        self._finish(before, "Полоса удалена")
+        self._finish(before, tr("Полоса удалена"))
 
     def clear_bars(self) -> None:
         """Delete all bars and brush strokes as one undo step, retaining the crop."""
@@ -489,7 +490,7 @@ class ImageCanvas(QGraphicsView):
         doc.bars.clear()
         doc.strokes.clear()
         self._selected = None
-        self._finish(before, f"Удалено элементов разметки: {count}")
+        self._finish(before, tr("Удалено элементов разметки: {count}", count=count))
 
     def reset_crop(self) -> None:
         self._end_gesture()
@@ -498,7 +499,7 @@ class ImageCanvas(QGraphicsView):
             return
         before = self._capture()
         doc.crop = None
-        self._finish(before, "Кроп сброшен")
+        self._finish(before, tr("Кроп сброшен"))
 
     def add_bars(self, bars: list[Bar], replace: bool = False) -> None:
         """Insert ``bars`` as one undo step; with ``replace`` the existing bars are discarded.
@@ -525,7 +526,7 @@ class ImageCanvas(QGraphicsView):
                 fresh.append(Bar(x=box[0], y=box[1], width=box[2] - box[0], height=box[3] - box[1], color=fill))
         if not fresh and not (replace and doc.bars):
             if bars:
-                self.status.emit("Все полосы лежат вне изображения — ничего не добавлено")
+                self.status.emit(tr("Все полосы лежат вне изображения — ничего не добавлено"))
             return
         before = self._capture()
         if replace:
@@ -534,20 +535,20 @@ class ImageCanvas(QGraphicsView):
         else:
             doc.bars.extend(fresh)
         if replace and not fresh:
-            message = f"Удалено полос: {len(before.bars)}"
+            message = tr("Удалено полос: {value}", value=len(before.bars))
         else:
             skipped = len(bars) - len(fresh)
-            note = f" (вне изображения пропущено: {skipped})" if skipped else ""
-            message = f"Добавлено полос: {len(fresh)}{note}"
+            note = tr(" (вне изображения пропущено: {skipped})", skipped=skipped) if skipped else ""
+            message = tr("Добавлено полос: {value}{note}", value=len(fresh), note=note)
         self._finish(before, message)
 
     # ------------------------------------------------------------------ history
 
     def undo(self) -> None:
-        self._step(self._undo, self._redo, "Отмена", "Нечего отменять")
+        self._step(self._undo, self._redo, tr("Отмена действия"), tr("Нечего отменять"))
 
     def redo(self) -> None:
-        self._step(self._redo, self._undo, "Повтор", "Нечего повторять")
+        self._step(self._redo, self._undo, tr("Повтор действия"), tr("Нечего повторять"))
 
     def _step(self, source, target, done: str, empty: str) -> None:
         self._end_gesture()
@@ -670,7 +671,7 @@ class ImageCanvas(QGraphicsView):
 
     def fit_image(self) -> None:
         self._fit_view()
-        self.status.emit(f"Масштаб: {round(self.zoom * 100)}%")
+        self.status.emit(tr("Масштаб: {value}%", value=round(self.zoom * 100)))
 
     def zoom_in(self) -> None:
         self._zoom_by(ZOOM_STEP)
@@ -729,7 +730,7 @@ class ImageCanvas(QGraphicsView):
         hbar.setValue(hbar.value() + _snap(fx - anchor.x()))
         vbar.setValue(vbar.value() + _snap(fy - anchor.y()))
         self.viewport().update()
-        self.status.emit(f"Масштаб: {round(new * 100)}%")
+        self.status.emit(tr("Масштаб: {value}%", value=round(new * 100)))
 
     def _pan(self, pos: QPointF) -> None:
         last = self._pan_last
@@ -1043,7 +1044,7 @@ class ImageCanvas(QGraphicsView):
             self._end_gesture()
             self._side_adjust = (button, event.position().x(), self._brush_thickness, event.position().x())
             self._set_cursor(Qt.CursorShape.SizeHorCursor)
-            self.status.emit("Боковая кнопка зажата: движение вправо/влево изменяет толщину")
+            self.status.emit(tr("Боковая кнопка зажата: движение вправо/влево изменяет толщину"))
             event.accept()
         elif button == Qt.MouseButton.MiddleButton:
             self._end_gesture()
@@ -1075,7 +1076,7 @@ class ImageCanvas(QGraphicsView):
                 if value != self._brush_thickness:
                     self._brush_thickness = value
                     self.brush_changed.emit(value)
-                    self.status.emit(f"Толщина кисти и новых полос: {value} px")
+                    self.status.emit(tr("Толщина кисти и новых полос: {value} px", value=value))
                 self._side_adjust = (button, start_x, start_thickness, pos.x())
         elif self._pan_last is not None:
             if event.buttons() & Qt.MouseButton.MiddleButton:
@@ -1148,15 +1149,15 @@ class ImageCanvas(QGraphicsView):
                 if g.bar is not None:
                     self._gesture = None
                     self._document.bars.append(g.bar)
-                    self._finish(g.before, f"Полоса добавлена: {g.bar.width}×{g.bar.height}, угол {g.bar.angle:.1f}°")
+                    self._finish(g.before, tr("Полоса добавлена: {value}×{value2}, угол {value3:.1f}°", value=g.bar.width, value2=g.bar.height, value3=g.bar.angle))
                 else:
-                    self.status.emit("Выберите вторую точку, отличную от начала полосы; Esc — отмена")
+                    self.status.emit(tr("Выберите вторую точку, отличную от начала полосы; Esc — отмена"))
             else:
                 width, height = self._size
                 start = QPointF(_clamp(scene.x(), 0, width), _clamp(scene.y(), 0, height))
                 self._start("draw", view, start, thickness=self._brush_thickness, color=self._brush_color)
                 self.viewport().update()
-                self.status.emit("Начало полосы задано. Кликните по конечной точке; Esc — отмена")
+                self.status.emit(tr("Начало полосы задано. Кликните по конечной точке; Esc — отмена"))
         else:
             self._press_crop(view, scene, bool(modifiers & Qt.KeyboardModifier.ShiftModifier))
         self._update_cursor(view)
@@ -1262,7 +1263,7 @@ class ImageCanvas(QGraphicsView):
     @staticmethod
     def _describe_box(g: _Gesture, box: Box) -> str:
         left, top, right, bottom = box
-        what = "Кроп" if g.kind.startswith("crop") else "Полоса"
+        what = tr("Кроп") if g.kind.startswith("crop") else tr("Полоса")
         return f"{what}: {right - left}×{bottom - top}, x={left}, y={top}"
 
     def _end_gesture(self) -> None:
@@ -1276,7 +1277,7 @@ class ImageCanvas(QGraphicsView):
             return
         if g.kind == "brush" and g.stroke is not None:
             self._document.strokes.append(g.stroke)
-            self._finish(g.before, f"Штрих кисти: {len(g.stroke.points)} точек, {g.stroke.thickness} px")
+            self._finish(g.before, tr("Штрих кисти: {value} точек, {value2} px", value=len(g.stroke.points), value2=g.stroke.thickness))
             return
         if g.kind == "crop_new" and g.started:
             crop = self._document.crop
@@ -1285,7 +1286,7 @@ class ImageCanvas(QGraphicsView):
                 self._restore(g.before)
                 self.viewport().update()
                 self._flush_selection()
-                self.status.emit("Рамка слишком мала — кроп не изменён")
+                self.status.emit(tr("Рамка слишком мала — кроп не изменён"))
                 return
         message = ""
         if g.kind.startswith("crop"):
@@ -1293,8 +1294,8 @@ class ImageCanvas(QGraphicsView):
             if crop is not None:
                 message = self._describe_box(g, _crop_box(crop))
         elif g.bar is not None:
-            verb = {"move": "перемещена", "resize": "изменена"}[g.kind]
-            message = f"Полоса {verb}: {g.bar.width}×{g.bar.height}, x={g.bar.x}, y={g.bar.y}"
+            verb = {"move": tr("перемещена"), "resize": tr("изменена")}[g.kind]
+            message = tr("Полоса {verb}: {value}×{value2}, x={value3}, y={value4}", verb=verb, value=g.bar.width, value2=g.bar.height, value3=g.bar.x, value4=g.bar.y)
         self._finish(g.before, message)
 
     def _cancel_gesture(self) -> None:
@@ -1306,7 +1307,7 @@ class ImageCanvas(QGraphicsView):
             self._restore(g.before)
         self.viewport().update()
         self._flush_selection()
-        self.status.emit("Действие отменено")
+        self.status.emit(tr("Действие отменено"))
 
     # ------------------------------------------------------------------ housekeeping
 

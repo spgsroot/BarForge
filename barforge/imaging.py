@@ -13,6 +13,7 @@ import cv2
 import numpy as np
 from PIL import Image, ImageOps
 
+from .i18n import tr
 from .models import BAR_COLORS, Bar, BrushStroke, Document, Rect, bar_polygon
 
 _WIDE_GRAY_MODES = frozenset({"I", "I;16", "I;16L", "I;16B"})
@@ -35,7 +36,7 @@ def load_rgb(source: str | Path) -> Image.Image:
             return _flatten_to_rgb(opened)
     except Exception as exc:  # Pillow raises OSError, SyntaxError, ValueError, DecompressionBombError, ...
         kind = type(exc) if isinstance(exc, OSError) else OSError  # FileNotFoundError and co. stay themselves
-        raise kind(f"Не удалось открыть изображение «{name}»: {exc}") from exc
+        raise kind(tr("Не удалось открыть изображение «{name}»: {exc}", name=name, exc=exc)) from exc
 
 
 def render_pair(document: Document, *, upscaler=None, progress=None, cancelled=None) -> tuple[Image.Image, Image.Image]:
@@ -54,14 +55,14 @@ def render_pair(document: Document, *, upscaler=None, progress=None, cancelled=N
         crop = document.crop
         box = _clip(crop.x, crop.y, crop.width, crop.height, full)
         if box is None:
-            raise ValueError("Область кадрирования пуста или лежит вне изображения")
+            raise ValueError(tr("Область кадрирования пуста или лежит вне изображения"))
     left, top = box[0], box[1]
     clean = image if box == full else image.crop(box)
     pixels = np.array(clean)  # writable copy; ``clean`` itself stays untouched
     for bar in document.bars:
         fill = BAR_COLORS.get(str(bar.color).lower())
         if fill is None:
-            raise ValueError(f"Недопустимый цвет полосы: {bar.color!r} (допустимы #ffffff и #000000)")
+            raise ValueError(tr("Недопустимый цвет полосы: {value!r} (допустимы #ffffff и #000000)", value=bar.color))
         if bar.angle:
             polygon = np.asarray(bar_polygon(bar), dtype=np.float64)
             # Rasterize in a source-anchored ROI, so cropping never changes edge pixels.
@@ -97,7 +98,7 @@ def _paint_stroke(pixels: np.ndarray, stroke: BrushStroke, box: tuple[int, int, 
     """Rasterize a round polyline in a small source-anchored ROI, clipped to the crop."""
     fill = BAR_COLORS.get(str(stroke.color).lower())
     if fill is None:
-        raise ValueError(f"Недопустимый цвет кисти: {stroke.color!r} (допустимы #ffffff и #000000)")
+        raise ValueError(tr("Недопустимый цвет кисти: {value!r} (допустимы #ffffff и #000000)", value=stroke.color))
     if not stroke.points or stroke.thickness < 1:
         return
     points = np.asarray(stroke.points, dtype=np.int32)
@@ -135,17 +136,17 @@ def auto_bars(
     area (the crop clipped to ``width`` x ``height``) with positive size.
     """
     if width < 1 or height < 1:
-        raise ValueError("Размер изображения должен быть положительным")
+        raise ValueError(tr("Размер изображения должен быть положительным"))
     if count < 0 or thickness < 1:
-        raise ValueError("Количество полос не может быть отрицательным, а толщина должна быть не меньше 1")
+        raise ValueError(tr("Количество полос не может быть отрицательным, а толщина должна быть не меньше 1"))
     fill = str(color).lower()
     if fill not in BAR_COLORS:
-        raise ValueError(f"Недопустимый цвет полосы: {color!r} (допустимы #ffffff и #000000)")
+        raise ValueError(tr("Недопустимый цвет полосы: {color!r} (допустимы #ffffff и #000000)", color=color))
     area = (0, 0, width, height)
     if crop is not None:
         area = _clip(crop.x, crop.y, crop.width, crop.height, area)
         if area is None:
-            raise ValueError("Область кадрирования пуста или лежит вне изображения")
+            raise ValueError(tr("Область кадрирования пуста или лежит вне изображения"))
     left, top, right, bottom = area
     span_w, span_h = right - left, bottom - top
     count = min(count, (span_h + 1) // 2)  # bars with one-pixel gaps (2 * count - 1 rows) must fit

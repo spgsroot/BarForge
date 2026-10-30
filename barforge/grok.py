@@ -25,6 +25,7 @@ import httpx
 from PIL import Image
 from PySide6.QtCore import QRunnable, QStandardPaths, QThreadPool
 
+from .i18n import tr
 from .xai_oauth import OAuthError, OAuthManager
 
 API_URL = "https://api.x.ai/v1/responses"
@@ -122,7 +123,7 @@ def scrub(value: object, secret: str | None = None, limit: int = 400) -> str:
 def clean_model(value: str) -> str:
     model = value.strip()
     if not _MODEL.fullmatch(model):
-        raise GrokError("Название модели: латиница, цифры и символы . _ : / - (до 100 знаков), без пробелов.")
+        raise GrokError(tr("Название модели: латиница, цифры и символы . _ : / - (до 100 знаков), без пробелов."))
     return model
 
 
@@ -173,7 +174,7 @@ class SettingsStore:
                 os.fsync(handle.fileno())
             os.replace(tmp, self.path)
         except OSError as exc:
-            raise GrokError(f"Не удалось сохранить настройки Grok: {scrub(exc)}") from None
+            raise GrokError(tr("Не удалось сохранить настройки Grok: {value}", value=scrub(exc))) from None
         finally:
             if tmp is not None:
                 with contextlib.suppress(OSError):
@@ -243,7 +244,7 @@ def encode_data_url(image: Image.Image) -> str:
     image.save(buffer, "JPEG", quality=JPEG_QUALITY, optimize=True)
     data = buffer.getvalue()
     if len(data) > MAX_IMAGE_BYTES:
-        raise GrokError("Изображение слишком большое для отправки в xAI.")
+        raise GrokError(tr("Изображение слишком большое для отправки в xAI."))
     return "data:image/jpeg;base64," + base64.b64encode(data).decode("ascii")
 
 
@@ -339,7 +340,7 @@ def _load_json(text: str) -> Any:
             return json.loads(candidate, parse_constant=reject)
         except ValueError:
             continue
-    raise GrokError("Grok вернул не JSON: " + scrub(text, limit=200))
+    raise GrokError(tr("Grok вернул не JSON: ") + scrub(text, limit=200))
 
 
 def _validate_bar(item: Any) -> BarSuggestion | None:
@@ -376,7 +377,7 @@ def parse_bars(text: str) -> tuple[list[BarSuggestion], int]:
     data = _load_json(text)
     items = data.get("bars") if isinstance(data, dict) else data
     if not isinstance(items, list):
-        raise GrokError("В ответе Grok нет списка «bars».")
+        raise GrokError(tr("В ответе Grok нет списка «bars»."))
     bars: list[BarSuggestion] = []
     dropped = 0
     for item in items:
@@ -386,30 +387,30 @@ def parse_bars(text: str) -> tuple[list[BarSuggestion], int]:
         else:
             bars.append(bar)
     if items and not bars:
-        raise GrokError("Все полосы в ответе Grok некорректны (координаты должны быть долями 0…1).")
+        raise GrokError(tr("Все полосы в ответе Grok некорректны (координаты должны быть долями 0…1)."))
     return bars, dropped
 
 
 def parse_response(task: str, data: Any, model: str = "") -> GrokResult:
     """Turn a decoded Responses API body into a GrokResult, or raise GrokError."""
     if not isinstance(data, dict):
-        raise GrokError("Ответ xAI имеет неожиданный формат.")
+        raise GrokError(tr("Ответ xAI имеет неожиданный формат."))
     error = data.get("error")
     if isinstance(error, dict) and (error.get("message") or error.get("code")):
-        raise GrokError("xAI сообщил об ошибке: " + scrub(error.get("message") or error.get("code"), limit=300))
+        raise GrokError(tr("xAI сообщил об ошибке: ") + scrub(error.get("message") or error.get("code"), limit=300))
     status = data.get("status")
     if status == "failed":
-        raise GrokError("Запрос не выполнен на стороне xAI.")
+        raise GrokError(tr("Запрос не выполнен на стороне xAI."))
     details = data.get("incomplete_details")
     reason = scrub(details.get("reason") or "", limit=60) if isinstance(details, dict) else ""
     text, refusal = _output_text(data)
     if refusal and not text:
-        raise GrokError("Grok отказался отвечать: " + scrub(refusal, limit=300))
+        raise GrokError(tr("Grok отказался отвечать: ") + scrub(refusal, limit=300))
     if not text:
-        raise GrokError("Grok вернул пустой ответ" + (f" (причина: {reason})" if reason else "") + ".")
+        raise GrokError(tr("Grok вернул пустой ответ") + (tr(" (причина: {reason})", reason=reason) if reason else "") + ".")
     notes: list[str] = []
     if status == "incomplete":
-        notes.append("Ответ неполный" + (f" ({reason})" if reason else "") + ".")
+        notes.append(tr("Ответ неполный") + (f" ({reason})" if reason else "") + ".")
     bars: list[BarSuggestion] = []
     if task == "bars":
         try:
@@ -417,16 +418,16 @@ def parse_response(task: str, data: Any, model: str = "") -> GrokResult:
         except GrokError:
             if status == "incomplete":
                 raise GrokError(
-                    "Ответ Grok оборван" + (f" ({reason})" if reason else "") + ": список полос неполный."
+                    tr("Ответ Grok оборван") + (f" ({reason})" if reason else "") + tr(": список полос неполный.")
                 ) from None
             raise
         text = ""
         if dropped:
-            notes.append(f"Отброшено полос: {dropped} (некорректные координаты или лимит {MAX_BARS}).")
+            notes.append(tr("Отброшено полос: {dropped} (некорректные координаты или лимит {MAX_BARS}).", dropped=dropped, MAX_BARS=MAX_BARS))
     elif task == "caption":
         text = clean_caption(text)
         if not text:
-            raise GrokError("Grok вернул пустой капшен.")
+            raise GrokError(tr("Grok вернул пустой капшен."))
     usage = data.get("usage")
     return GrokResult(
         task=task,
@@ -443,13 +444,13 @@ def parse_response(task: str, data: Any, model: str = "") -> GrokResult:
 
 
 _HTTP_TEXT = {
-    400: "xAI отклонил запрос (400)",
-    401: "xAI отклонил OAuth-сессию (401): войдите повторно через «Настройки Grok»",
-    403: "Доступ запрещён (403): OAuth-вход выполнен, но аккаунту или подписке недоступна эта модель или операция",
-    404: "Модель или адрес не найдены (404): проверьте название модели в настройках",
-    413: "Изображение слишком велико для xAI (413)",
-    422: "xAI не смог обработать запрос (422)",
-    429: "Превышена квота OAuth-подписки или лимит запросов xAI (429)",
+    400: tr("xAI отклонил запрос (400)"),
+    401: tr("xAI отклонил OAuth-сессию (401): войдите повторно через «Настройки Grok»"),
+    403: tr("Доступ запрещён (403): OAuth-вход выполнен, но аккаунту или подписке недоступна эта модель или операция"),
+    404: tr("Модель или адрес не найдены (404): проверьте название модели в настройках"),
+    413: tr("Изображение слишком велико для xAI (413)"),
+    422: tr("xAI не смог обработать запрос (422)"),
+    429: tr("Превышена квота OAuth-подписки или лимит запросов xAI (429)"),
 }
 
 
@@ -526,13 +527,13 @@ class GrokClient:
         except GrokCancelled:
             raise
         except httpx.TimeoutException:
-            raise GrokError("xAI не ответил за отведённое время. Повторите запрос позже.") from None
+            raise GrokError(tr("xAI не ответил за отведённое время. Повторите запрос позже.")) from None
         except Exception as exc:
             if self.cancelled:
                 raise GrokCancelled() from None
             if isinstance(exc, httpx.HTTPError):
                 raise GrokError(
-                    f"Не удалось связаться с xAI ({type(exc).__name__}). Проверьте интернет, прокси и брандмауэр."
+                    tr("Не удалось связаться с xAI ({value}). Проверьте интернет, прокси и брандмауэр.", value=type(exc).__name__)
                 ) from None
             raise
         self._raise_if_cancelled()
@@ -546,16 +547,16 @@ class GrokClient:
         try:
             return response.json()
         except ValueError:
-            raise GrokError("xAI вернул ответ, который не является JSON.") from None
+            raise GrokError(tr("xAI вернул ответ, который не является JSON.")) from None
 
     def _http_error(self, response: httpx.Response) -> str:
         status = response.status_code
         if status in _HTTP_TEXT:
             base = _HTTP_TEXT[status]
         elif status >= 500:
-            base = f"Сервис xAI временно недоступен ({status}). Повторите позже"
+            base = tr("Сервис xAI временно недоступен ({status}). Повторите позже", status=status)
         else:
-            base = f"Неожиданный ответ xAI ({status})"
+            base = tr("Неожиданный ответ xAI ({status})", status=status)
         detail = ""
         try:
             body = response.json()
@@ -615,7 +616,7 @@ class _Worker(QRunnable):
         except GrokError as exc:
             job.error = exc.message
         except Exception as exc:  # a bug must surface as a message, not vanish in the pool thread
-            job.error = f"Непредвиденная ошибка при запросе к Grok ({type(exc).__name__})."
+            job.error = tr("Непредвиденная ошибка при запросе к Grok ({value}).", value=type(exc).__name__)
         job.image = None
         with contextlib.suppress(RuntimeError):  # the receiving QObject is already gone at shutdown
             self._notify(job)

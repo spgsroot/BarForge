@@ -11,6 +11,7 @@ import hashlib
 import json
 import math
 from dataclasses import dataclass, field
+from .i18n import tr
 
 DEFAULT_CAPTION = "rustnomiconUncensor. Remove the white censor bars"
 
@@ -29,12 +30,12 @@ COLOR_PLACEHOLDER = "{color}"
 #: Prepared captions as ``(short label, pattern)``: the generic wording, four anatomical types and the
 #: colourless wording. ``{color}`` in a pattern becomes the colour word of the bars.
 CAPTION_TEMPLATES: tuple[tuple[str, str], ...] = (
-    ("Общий", "rustnomiconUncensor. Remove the {color} censor bars"),
-    ("Пенис", "rustnomiconUncensor. Remove the {color} censor bars, penis, close-up"),
-    ("Вагина", "rustnomiconUncensor. Remove the {color} censor bars, vagina, close-up"),
-    ("Анус", "rustnomiconUncensor. Remove the {color} censor bars, anus, close-up"),
-    ("Проникновение", "rustnomiconUncensor. Remove the {color} censor bars, penetration, penis penetrating vagina"),
-    ("Без цвета", "rustnomiconUncensor. Remove the censor bars"),
+    (tr("Общий"), "rustnomiconUncensor. Remove the {color} censor bars"),
+    (tr("Пенис"), "rustnomiconUncensor. Remove the {color} censor bars, penis, close-up"),
+    (tr("Вагина"), "rustnomiconUncensor. Remove the {color} censor bars, vagina, close-up"),
+    (tr("Анус"), "rustnomiconUncensor. Remove the {color} censor bars, anus, close-up"),
+    (tr("Проникновение"), "rustnomiconUncensor. Remove the {color} censor bars, penetration, penis penetrating vagina"),
+    (tr("Без цвета"), "rustnomiconUncensor. Remove the censor bars"),
 )
 
 
@@ -84,7 +85,7 @@ def bar_polygon(bar: Bar) -> list[tuple[float, float]]:
     """Outer-edge corners of a bar rotated clockwise in y-down image coordinates."""
     angle = float(bar.angle)
     if not math.isfinite(angle) or not -180 <= angle <= 180:
-        raise ValueError("Угол линии должен быть конечным числом от -180 до 180 градусов")
+        raise ValueError(tr("Угол линии должен быть конечным числом от -180 до 180 градусов"))
     cx, cy = bar.x + bar.width / 2, bar.y + bar.height / 2
     cosine, sine = math.cos(math.radians(angle)), math.sin(math.radians(angle))
     return [(cx + dx * cosine - dy * sine, cy + dx * sine + dy * cosine)

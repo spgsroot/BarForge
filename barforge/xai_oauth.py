@@ -33,6 +33,7 @@ from typing import Any
 from urllib.parse import urlsplit
 
 import httpx
+from .i18n import tr
 
 __all__ = [
     "CLIENT_ID",
@@ -65,15 +66,15 @@ _VERIFICATION_HOSTS = frozenset({"accounts.x.ai", "auth.x.ai"})
 _HEADERS = {"Accept": "application/json", "User-Agent": USER_AGENT}
 _RECORD_VERSION = 1
 
-_MSG_NOT_SIGNED_IN = "Вход через xAI OAuth не выполнен. Войдите в настройках Grok."
-_MSG_SIGN_IN_AGAIN = "Доступ xAI истёк или отозван. Войдите через xAI OAuth заново."
-_MSG_SESSION_CHANGED = "Вход xAI был сброшен или заменён во время обновления доступа. Повторите действие."
-_MSG_CODE_EXPIRED = "Срок действия кода подтверждения истёк. Начните вход заново."
-_MSG_DENIED = "Доступ отклонён на странице xAI. Чтобы войти, начните заново и подтвердите доступ."
-_MSG_NO_STORAGE = "Защищённое хранилище ОС недоступно: войти можно только на время сессии."
-_MSG_TIMEOUT = "xAI не ответил за отведённое время. Повторите позже."
-_MSG_BAD_URL = "xAI вернул недопустимый адрес подтверждения; вход прерван из соображений безопасности."
-_MSG_REVOKE_MANUALLY = "Отзовите доступ вручную в настройках аккаунта xAI."
+_MSG_NOT_SIGNED_IN = tr("Вход через xAI OAuth не выполнен. Войдите в настройках Grok.")
+_MSG_SIGN_IN_AGAIN = tr("Доступ xAI истёк или отозван. Войдите через xAI OAuth заново.")
+_MSG_SESSION_CHANGED = tr("Вход xAI был сброшен или заменён во время обновления доступа. Повторите действие.")
+_MSG_CODE_EXPIRED = tr("Срок действия кода подтверждения истёк. Начните вход заново.")
+_MSG_DENIED = tr("Доступ отклонён на странице xAI. Чтобы войти, начните заново и подтвердите доступ.")
+_MSG_NO_STORAGE = tr("Защищённое хранилище ОС недоступно: войти можно только на время сессии.")
+_MSG_TIMEOUT = tr("xAI не ответил за отведённое время. Повторите позже.")
+_MSG_BAD_URL = tr("xAI вернул недопустимый адрес подтверждения; вход прерван из соображений безопасности.")
+_MSG_REVOKE_MANUALLY = tr("Отзовите доступ вручную в настройках аккаунта xAI.")
 
 
 class OAuthError(Exception):
@@ -181,8 +182,7 @@ def _endpoint(document: dict[str, Any], name: str) -> str:
     url = _pinned_url(document.get(name), _ENDPOINT_HOSTS)
     if url is None:
         raise OAuthError(
-            f"Настройки входа xAI не прошли проверку: адрес «{name}» отсутствует или не принадлежит auth.x.ai. "
-            "Вход прерван."
+            tr("Настройки входа xAI не прошли проверку: адрес «{name}» отсутствует или не принадлежит auth.x.ai. Вход прерван.", name=name)
         )
     return url
 
@@ -205,19 +205,18 @@ def _detail(body: dict[str, Any] | None, *secrets: str) -> str:
 
 def _status_text(status: int) -> str:
     if status == 400:
-        return "xAI отклонил запрос (400)"
+        return tr("xAI отклонил запрос (400)")
     if status == 401:
-        return "xAI не принял авторизацию (401)"
+        return tr("xAI не принял авторизацию (401)")
     if status == 403:
         return (
-            "доступ запрещён (403): аккаунту или подписке xAI недоступен OAuth-доступ к API, "
-            "хотя вход выполнен корректно"
+            tr("доступ запрещён (403): аккаунту или подписке xAI недоступен OAuth-доступ к API, хотя вход выполнен корректно")
         )
     if status == 429:
-        return "слишком много запросов к xAI (429), подождите и повторите"
+        return tr("слишком много запросов к xAI (429), подождите и повторите")
     if status >= 500:
-        return f"сервис xAI временно недоступен ({status})"
-    return f"неожиданный ответ xAI ({status})"
+        return tr("сервис xAI временно недоступен ({status})", status=status)
+    return tr("неожиданный ответ xAI ({status})", status=status)
 
 
 def _failure(action: str, status: int, body: dict[str, Any] | None, *secrets: str) -> OAuthError:
@@ -233,11 +232,11 @@ def _failure(action: str, status: int, body: dict[str, Any] | None, *secrets: st
 
 
 def _malformed(what: str) -> OAuthError:
-    return OAuthError(f"xAI вернул некорректный ответ ({what}); операция прервана.")
+    return OAuthError(tr("xAI вернул некорректный ответ ({what}); операция прервана.", what=what))
 
 
 def _no_storage_error(problem: str) -> OAuthError:
-    return OAuthError(f"{_MSG_NO_STORAGE} Причина: {problem}." if problem else _MSG_NO_STORAGE)
+    return OAuthError(tr("{_MSG_NO_STORAGE} Причина: {problem}.", _MSG_NO_STORAGE=_MSG_NO_STORAGE, problem=problem) if problem else _MSG_NO_STORAGE)
 
 
 def _parse_device(body: dict[str, Any], requested_at: float, generation: int) -> DeviceCode:
@@ -277,7 +276,7 @@ def _parse_tokens(body: dict[str, Any], requested_at: float, previous: OAuthToke
         raise _malformed("refresh_token")
     kind = body.get("token_type")
     if kind is not None and not (isinstance(kind, str) and kind.lower() == "bearer"):
-        raise OAuthError("xAI выдал токен неподдерживаемого типа; операция прервана.")
+        raise OAuthError(tr("xAI выдал токен неподдерживаемого типа; операция прервана."))
     lifetime = _number(body.get("expires_in"))
     if lifetime is None:
         raise _malformed("expires_in")
@@ -335,16 +334,16 @@ def _find_secure_backend() -> tuple[Any | None, str, str]:
     allowlisted OS stores below are ever used.
     """
     if sys.platform == "win32":
-        candidates = [("keyring.backends.Windows", "WinVaultKeyring", "Диспетчер учётных данных Windows")]
+        candidates = [("keyring.backends.Windows", "WinVaultKeyring", tr("Диспетчер учётных данных Windows"))]
     elif sys.platform == "darwin":
-        candidates = [("keyring.backends.macOS", "Keyring", "Связка ключей macOS")]
+        candidates = [("keyring.backends.macOS", "Keyring", tr("Связка ключей macOS"))]
     else:
         candidates = [
             ("keyring.backends.SecretService", "Keyring", "Secret Service"),
             ("keyring.backends.kwallet", "DBusKeyring", "KDE Wallet"),
             ("keyring.backends.libsecret", "Keyring", "libsecret"),
         ]
-    problem = "в этой ОС нет поддерживаемого защищённого хранилища"
+    problem = tr("в этой ОС нет поддерживаемого защищённого хранилища")
     for module_name, class_name, title in candidates:
         try:
             backend_class = getattr(importlib.import_module(module_name), class_name)
@@ -352,7 +351,7 @@ def _find_secure_backend() -> tuple[Any | None, str, str]:
                 raise RuntimeError("unusable")
             backend = backend_class()
         except Exception as exc:
-            problem = f"«{title}» недоступно ({type(exc).__name__})"
+            problem = tr("«{title}» недоступно ({value})", title=title, value=type(exc).__name__)
             continue
         if module_name.endswith(".Windows"):
             with contextlib.suppress(Exception):
@@ -415,8 +414,7 @@ class OAuthTokenStore:
                         self._delete()
                     except OAuthError as exc:
                         raise OAuthError(
-                            f"{exc.message} Вход на время сессии не выполнен: "
-                            "прежняя запись вернулась бы после перезапуска."
+                            tr("{value} Вход на время сессии не выполнен: прежняя запись вернулась бы после перезапуска.", value=exc.message)
                         ) from None
                 self._source = "session"
             self._tokens = tokens
@@ -457,7 +455,7 @@ class OAuthTokenStore:
         try:
             text = self._backend.get_password(KEYRING_SERVICE, KEYRING_USER)
         except Exception as exc:
-            self.read_error = f"Не удалось прочитать сохранённый вход из хранилища ОС ({type(exc).__name__})."
+            self.read_error = tr("Не удалось прочитать сохранённый вход из хранилища ОС ({value}).", value=type(exc).__name__)
             return
         if not text:
             return
@@ -465,7 +463,7 @@ class OAuthTokenStore:
         try:
             self._tokens = _decode(text)
         except (ValueError, TypeError):
-            self.read_error = "Сохранённый в хранилище ОС вход повреждён: войдите заново."
+            self.read_error = tr("Сохранённый в хранилище ОС вход повреждён: войдите заново.")
             return
         self._source = "keyring"
 
@@ -474,7 +472,7 @@ class OAuthTokenStore:
         try:
             self._backend.set_password(KEYRING_SERVICE, KEYRING_USER, record)
         except Exception as exc:
-            raise OAuthError(f"Не удалось сохранить вход в хранилище ОС ({type(exc).__name__}).") from None
+            raise OAuthError(tr("Не удалось сохранить вход в хранилище ОС ({value}).", value=type(exc).__name__)) from None
         self._record = True
 
     def _delete(self) -> None:
@@ -487,7 +485,7 @@ class OAuthTokenStore:
             except Exception:
                 still_there = True
             if still_there:
-                raise OAuthError(f"Не удалось удалить вход из хранилища ОС ({type(exc).__name__}).") from None
+                raise OAuthError(tr("Не удалось удалить вход из хранилища ОС ({value}).", value=type(exc).__name__)) from None
         self._record = False
 
 
@@ -535,18 +533,18 @@ class OAuthManager:
         store = self.store
         tokens = store.load()
         if tokens is None:
-            text = "Вход через xAI OAuth не выполнен."
+            text = tr("Вход через xAI OAuth не выполнен.")
             if store.read_error:
                 text += f" {store.read_error}"
         elif not self._usable(tokens):
-            text = "Срок действия входа xAI истёк: войдите заново."
+            text = tr("Срок действия входа xAI истёк: войдите заново.")
         elif store.source == "keyring":
             where = f" ({store.secure_title})" if store.secure_title else ""
-            text = f"Выполнен вход через xAI OAuth: токен хранится в защищённом хранилище ОС{where}."
+            text = tr("Выполнен вход через xAI OAuth: токен хранится в защищённом хранилище ОС{where}.", where=where)
         else:
-            text = "Выполнен вход через xAI OAuth на время сессии: токены хранятся только в памяти."
+            text = tr("Выполнен вход через xAI OAuth на время сессии: токены хранятся только в памяти.")
         if store.write_error:
-            text += f" Внимание: {store.write_error} После перезапуска может потребоваться войти заново."
+            text += tr(" Внимание: {value} После перезапуска может потребоваться войти заново.", value=store.write_error)
         return text
 
     # -- login
@@ -569,9 +567,9 @@ class OAuthManager:
         status, body = self._request("POST", endpoints.device, {"client_id": CLIENT_ID, "scope": SCOPES}, stop)
         self._check_login(stop, epoch)
         if status != 200:
-            raise _failure("Не удалось начать вход через xAI", status, body)
+            raise _failure(tr("Не удалось начать вход через xAI"), status, body)
         if body is None:
-            raise _malformed("ответ не является JSON")
+            raise _malformed(tr("ответ не является JSON"))
         return _parse_device(body, requested_at, epoch)
 
     def complete_login(self, device: DeviceCode, stop: threading.Event, *, persist: bool = True) -> OAuthTokens:
@@ -610,9 +608,9 @@ class OAuthManager:
             if error == "expired_token":
                 raise OAuthError(_MSG_CODE_EXPIRED)
             if status != 200 or error:
-                raise _failure("Не удалось завершить вход через xAI", status, body, device.device_code)
+                raise _failure(tr("Не удалось завершить вход через xAI"), status, body, device.device_code)
             if body is None:
-                raise _malformed("ответ не является JSON")
+                raise _malformed(tr("ответ не является JSON"))
             tokens = _parse_tokens(body, requested_at, None)
             break
         with self._lock:
@@ -664,7 +662,7 @@ class OAuthManager:
         remote_problem = self._revoke(tokens) if tokens is not None else ""
         problems = [text for text in (local_problem, remote_problem) if text]
         if problems:
-            raise OAuthError("Вы вышли в программе, но есть замечания. " + " ".join(problems))
+            raise OAuthError(tr("Вы вышли в программе, но есть замечания. ") + " ".join(problems))
 
     def invalidate(self, *, access_token: str | None = None) -> None:
         """Forget the local credential without contacting xAI (the provider rejected it).
@@ -727,9 +725,9 @@ class OAuthManager:
         if _error_code(body) == "invalid_grant":
             raise self._expired(generation)
         if status != 200:
-            raise _failure("Не удалось обновить доступ xAI", status, body, refresh_token)
+            raise _failure(tr("Не удалось обновить доступ xAI"), status, body, refresh_token)
         if body is None:
-            raise _malformed("ответ не является JSON")
+            raise _malformed(tr("ответ не является JSON"))
         fresh = _parse_tokens(body, requested_at, tokens)
         with self._lock:
             if self._cred_gen != generation:
@@ -746,14 +744,14 @@ class OAuthManager:
         try:
             endpoint = self._endpoints_for().revocation
             if endpoint is None:
-                return f"xAI не сообщил адрес отзыва токена. {_MSG_REVOKE_MANUALLY}"
+                return tr("xAI не сообщил адрес отзыва токена. {_MSG_REVOKE_MANUALLY}", _MSG_REVOKE_MANUALLY=_MSG_REVOKE_MANUALLY)
             form = {"client_id": CLIENT_ID, "token": token, "token_type_hint": hint}
             status, body = self._request("POST", endpoint, form)
         except OAuthError as exc:
-            return f"Не удалось отозвать доступ в xAI: {exc.message} {_MSG_REVOKE_MANUALLY}"
+            return tr("Не удалось отозвать доступ в xAI: {value} {_MSG_REVOKE_MANUALLY}", value=exc.message, _MSG_REVOKE_MANUALLY=_MSG_REVOKE_MANUALLY)
         if 200 <= status < 300:
             return ""
-        return f"{_failure('Не удалось отозвать доступ в xAI', status, body, token).message} {_MSG_REVOKE_MANUALLY}"
+        return f"{_failure(tr("Не удалось отозвать доступ в xAI"), status, body, token).message} {_MSG_REVOKE_MANUALLY}"
 
     def _endpoints_for(self, stop: threading.Event | None = None) -> _Endpoints:
         endpoints = self._endpoints
@@ -765,11 +763,11 @@ class OAuthManager:
         """Fetch the OIDC discovery document and accept it only if issuer and endpoints are the pinned xAI ones."""
         status, body = self._request("GET", DISCOVERY_URL, None, stop)
         if status != 200:
-            raise _failure("Не удалось получить настройки входа xAI", status, body)
+            raise _failure(tr("Не удалось получить настройки входа xAI"), status, body)
         if body is None:
-            raise _malformed("настройки входа не являются JSON")
+            raise _malformed(tr("настройки входа не являются JSON"))
         if body.get("issuer") != ISSUER:
-            raise OAuthError("Настройки входа xAI не прошли проверку: неожиданный издатель. Вход прерван.")
+            raise OAuthError(tr("Настройки входа xAI не прошли проверку: неожиданный издатель. Вход прерван."))
         device = _endpoint(body, "device_authorization_endpoint")
         token = _endpoint(body, "token_endpoint")
         revocation = _endpoint(body, "revocation_endpoint") if body.get("revocation_endpoint") is not None else None
@@ -793,7 +791,7 @@ class OAuthManager:
                 raise OAuthError(_MSG_TIMEOUT) from None
             if isinstance(exc, httpx.HTTPError):
                 raise OAuthError(
-                    f"Не удалось связаться с xAI ({type(exc).__name__}). Проверьте интернет, прокси и брандмауэр."
+                    tr("Не удалось связаться с xAI ({value}). Проверьте интернет, прокси и брандмауэр.", value=type(exc).__name__)
                 ) from None
             raise
         try:

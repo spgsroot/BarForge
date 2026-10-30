@@ -20,6 +20,7 @@ from pathlib import Path
 
 from PIL import Image
 
+from .i18n import tr
 from .imaging import render_pair
 from .models import BAR_COLORS, DEFAULT_CAPTION, Bar, BrushStroke, Document, Rect, Session
 
@@ -58,7 +59,7 @@ def discover_images(folder: Path) -> list[Document]:
                 and entry.is_file()
             ]
     except OSError as exc:
-        raise _same_kind(exc, f"Не удалось прочитать папку «{root}»: {exc}") from exc
+        raise _same_kind(exc, tr("Не удалось прочитать папку «{root}»: {exc}", root=root, exc=exc)) from exc
     names.sort(key=_natural_key)
     return [Document(source=os.path.join(root, name)) for name in names]
 
@@ -94,7 +95,7 @@ def save_session(session: Session, path: Path) -> None:
         os.makedirs(base, exist_ok=True)
         _write_atomic(Path(target), data)
     except OSError as exc:
-        raise _same_kind(exc, f"Не удалось сохранить сессию «{os.path.basename(target)}»: {exc}") from exc
+        raise _same_kind(exc, tr("Не удалось сохранить сессию «{value}»: {exc}", value=os.path.basename(target), exc=exc)) from exc
 
 
 def load_session(path: Path) -> Session:
@@ -109,18 +110,18 @@ def load_session(path: Path) -> Session:
         with open(target, "rb") as handle:
             text = handle.read().decode("utf-8-sig")
     except OSError as exc:
-        raise _same_kind(exc, f"Не удалось прочитать файл сессии «{name}»: {exc}") from exc
+        raise _same_kind(exc, tr("Не удалось прочитать файл сессии «{name}»: {exc}", name=name, exc=exc)) from exc
     except UnicodeDecodeError as exc:
-        raise ValueError(f"Файл сессии «{name}» не является текстом UTF-8") from exc
+        raise ValueError(tr("Файл сессии «{name}» не является текстом UTF-8", name=name)) from exc
     try:
         data = json.loads(text, parse_constant=_reject_constant)
     except (ValueError, RecursionError) as exc:
-        raise ValueError(f"Файл сессии «{name}» повреждён: {exc}") from exc
+        raise ValueError(tr("Файл сессии «{name}» повреждён: {exc}", name=name, exc=exc)) from exc
     return _decode_session(data, os.path.dirname(target))
 
 
 def _reject_constant(constant: str) -> None:
-    raise ValueError(f"недопустимое значение {constant}")  # NaN / Infinity are not valid JSON
+    raise ValueError(tr("недопустимое значение {constant}", constant=constant))  # NaN / Infinity are not valid JSON
 
 
 def _encode_document(document: Document, base: str) -> dict[str, object]:
@@ -147,18 +148,18 @@ def _geometry(item: Rect | Bar) -> dict[str, int]:
 
 
 def _decode_session(data: object, base: str) -> Session:
-    root = _mapping(data, "корень файла")
+    root = _mapping(data, tr("корень файла"))
     if root.get("format") != SESSION_FORMAT:
-        raise ValueError("Файл не является сессией BarForge")
+        raise ValueError(tr("Файл не является сессией BarForge"))
     version = root.get("version")
     if isinstance(version, bool) or not isinstance(version, int):
-        raise _invalid("version", "ожидалось целое число")
+        raise _invalid("version", tr("ожидалось целое число"))
     if version > SESSION_VERSION:
         raise ValueError(
-            f"Сессия создана более новой версией BarForge (формат {version}, поддерживается {SESSION_VERSION})"
+            tr("Сессия создана более новой версией BarForge (формат {version}, поддерживается {SESSION_VERSION})", version=version, SESSION_VERSION=SESSION_VERSION)
         )
     if version < 1:
-        raise ValueError(f"Неподдерживаемая версия формата сессии: {version}")
+        raise ValueError(tr("Неподдерживаемая версия формата сессии: {version}", version=version))
     documents = [
         _decode_document(item, f"documents[{index}]", base)
         for index, item in enumerate(_sequence(root.get("documents", []), "documents"))
@@ -182,14 +183,14 @@ def _decode_document(item: object, where: str, base: str) -> Document:
                for index, stroke in enumerate(_sequence(entry.get("strokes", []), f"{where}.strokes"))]
     upscale, touched = entry.get("upscale", False), entry.get("caption_touched", True)
     if not isinstance(upscale, bool) or not isinstance(touched, bool):
-        raise _invalid(where, "upscale и caption_touched должны быть логическими значениями")
+        raise _invalid(where, tr("upscale и caption_touched должны быть логическими значениями"))
     raw_crop = entry.get("crop")
     export_name = entry.get("export_name")
     if export_name is not None and not _EXPORT_NAME.fullmatch(_text(export_name, f"{where}.export_name")):
-        raise _invalid(f"{where}.export_name", "ожидается номер из 1–9 цифр, например 001")
+        raise _invalid(f"{where}.export_name", tr("ожидается номер из 1–9 цифр, например 001"))
     signature = entry.get("exported_signature")
     if signature is not None and not _SIGNATURE.fullmatch(_text(signature, f"{where}.exported_signature")):
-        raise _invalid(f"{where}.exported_signature", "ожидается SHA-256: 64 шестнадцатеричных символа")
+        raise _invalid(f"{where}.exported_signature", tr("ожидается SHA-256: 64 шестнадцатеричных символа"))
     return Document(
         source=_decode_path(entry.get("source"), f"{where}.source", base, required=True),
         bars=bars,
@@ -209,11 +210,11 @@ def _decode_bar(item: object, where: str) -> Bar:
     rect = _decode_rect(entry, where)
     color = _text(entry.get("color", "#ffffff"), f"{where}.color").lower()
     if color not in BAR_COLORS:
-        raise _invalid(f"{where}.color", "допустимы только #ffffff и #000000")
+        raise _invalid(f"{where}.color", tr("допустимы только #ffffff и #000000"))
     angle = entry.get("angle", 0.)
     if (isinstance(angle, bool) or not isinstance(angle, (int, float))
             or not math.isfinite(angle) or not -180 <= angle <= 180):
-        raise _invalid(f"{where}.angle", "ожидается конечное число от -180 до 180")
+        raise _invalid(f"{where}.angle", tr("ожидается конечное число от -180 до 180"))
     return Bar(rect.x, rect.y, rect.width, rect.height, color, float(angle))
 
 
@@ -221,18 +222,18 @@ def _decode_stroke(item: object, where: str) -> BrushStroke:
     entry = _mapping(item, where)
     raw_points = _sequence(entry.get("points"), f"{where}.points")
     if not raw_points or len(raw_points) > _COORD_LIMIT:
-        raise _invalid(f"{where}.points", f"ожидается от 1 до {_COORD_LIMIT} точек")
+        raise _invalid(f"{where}.points", tr("ожидается от 1 до {_COORD_LIMIT} точек", _COORD_LIMIT=_COORD_LIMIT))
     points = []
     for index, raw in enumerate(raw_points):
         pair = _sequence(raw, f"{where}.points[{index}]")
         if len(pair) != 2:
-            raise _invalid(f"{where}.points[{index}]", "ожидались две координаты")
+            raise _invalid(f"{where}.points[{index}]", tr("ожидались две координаты"))
         points.append(tuple(_integer(value, f"{where}.points[{index}]", -_COORD_LIMIT, _COORD_LIMIT)
                             for value in pair))
     thickness = _integer(entry.get("thickness"), f"{where}.thickness", 1, 8192)
     color = _text(entry.get("color", "#ffffff"), f"{where}.color").lower()
     if color not in BAR_COLORS:
-        raise _invalid(f"{where}.color", "допустимы только #ffffff и #000000")
+        raise _invalid(f"{where}.color", tr("допустимы только #ffffff и #000000"))
     return BrushStroke(tuple(points), thickness, color)
 
 
@@ -246,30 +247,30 @@ def _decode_rect(entry: dict, where: str) -> Rect:
 
 
 def _invalid(where: str, problem: str) -> ValueError:
-    return ValueError(f"Некорректная сессия: {where} — {problem}")
+    return ValueError(tr("Некорректная сессия: {where} — {problem}", where=where, problem=problem))
 
 
 def _mapping(value: object, where: str) -> dict:
     if not isinstance(value, dict):
-        raise _invalid(where, "ожидался объект")
+        raise _invalid(where, tr("ожидался объект"))
     return value
 
 
 def _sequence(value: object, where: str) -> list:
     if not isinstance(value, list):
-        raise _invalid(where, "ожидался список")
+        raise _invalid(where, tr("ожидался список"))
     return value
 
 
 def _text(value: object, where: str, *, allow_empty: bool = False) -> str:
     if not isinstance(value, str) or not (value or allow_empty):
-        raise _invalid(where, "ожидалась строка" if allow_empty else "ожидалась непустая строка")
+        raise _invalid(where, tr("ожидалась строка") if allow_empty else tr("ожидалась непустая строка"))
     if "\x00" in value:
-        raise _invalid(where, "строка содержит нулевой символ")
+        raise _invalid(where, tr("строка содержит нулевой символ"))
     try:
         value.encode("utf-8")
     except UnicodeEncodeError:
-        raise _invalid(where, "строка содержит недопустимые символы Юникода") from None
+        raise _invalid(where, tr("строка содержит недопустимые символы Юникода")) from None
     return value
 
 
@@ -277,9 +278,9 @@ def _integer(value: object, where: str, low: int, high: int) -> int:
     if isinstance(value, float) and value.is_integer():  # 12.0 is accepted; NaN, inf and 12.5 are not
         value = int(value)
     if isinstance(value, bool) or not isinstance(value, int):
-        raise _invalid(where, "ожидалось конечное целое число")
+        raise _invalid(where, tr("ожидалось конечное целое число"))
     if not low <= value <= high:
-        raise _invalid(where, f"значение вне допустимого диапазона {low}…{high}")
+        raise _invalid(where, tr("значение вне допустимого диапазона {low}…{high}", low=low, high=high))
     return value
 
 
@@ -320,7 +321,7 @@ def export_pair(document: Document, output_dir: Path, *, overwrite: bool = False
     name = document.export_name
     if name is not None:
         if not _EXPORT_NAME.fullmatch(name):
-            raise ValueError(f"Недопустимое имя экспорта: {name!r}")
+            raise ValueError(tr("Недопустимое имя экспорта: {name!r}", name=name))
         existing = [path for path in _pair_paths(root, name) if os.path.lexists(path)]
         if existing and not overwrite:
             raise ExportConflictError(_conflict_message(name, existing, root))
@@ -329,7 +330,7 @@ def export_pair(document: Document, output_dir: Path, *, overwrite: bool = False
     try:
         caption = snapshot.caption.encode("utf-8")
     except UnicodeEncodeError as exc:
-        raise ValueError("Подпись содержит символы, которые нельзя сохранить в UTF-8") from exc
+        raise ValueError(tr("Подпись содержит символы, которые нельзя сохранить в UTF-8")) from exc
     clean, censored = render_pair(snapshot, upscaler=upscaler, progress=progress, cancelled=cancelled)
     clean_png, censored_png = _png_bytes(clean), _png_bytes(censored)
     try:
@@ -341,7 +342,7 @@ def export_pair(document: Document, output_dir: Path, *, overwrite: bool = False
     except ExportConflictError:
         raise
     except OSError as exc:
-        raise _same_kind(exc, f"Не удалось записать пару в «{root}»: {exc}") from exc
+        raise _same_kind(exc, tr("Не удалось записать пару в «{root}»: {exc}", root=root, exc=exc)) from exc
     document.export_name = name
     document.exported_signature = signature
     return name
@@ -353,7 +354,7 @@ def _pair_paths(root: Path, name: str) -> list[Path]:
 
 def _conflict_message(name: str, existing: list[Path], root: Path) -> str:
     shown = ", ".join(path.relative_to(root).as_posix() for path in existing)
-    return f"Пара {name} уже существует ({shown}). Для замены нужно разрешить перезапись."
+    return tr("Пара {name} уже существует ({shown}). Для замены нужно разрешить перезапись.", name=name, shown=shown)
 
 
 def _next_name(*folders: Path) -> str:
@@ -366,7 +367,7 @@ def _next_name(*folders: Path) -> str:
                 if _EXPORT_NAME.fullmatch(stem):
                     highest = max(highest, int(stem))
     if highest >= _MAX_EXPORT_NUMBER:
-        raise OSError(f"Исчерпана нумерация пар: в папке датасета уже есть номер {highest}")
+        raise OSError(tr("Исчерпана нумерация пар: в папке датасета уже есть номер {highest}", highest=highest))
     return f"{highest + 1:03d}"
 
 
@@ -393,7 +394,7 @@ def _publish(files: list[tuple[Path, bytes]], overwrite: bool) -> None:
         for _, final in staged:
             if os.path.lexists(final):
                 if not overwrite:
-                    raise ExportConflictError(f"Файл уже существует: {final.name}")
+                    raise ExportConflictError(tr("Файл уже существует: {value}", value=final.name))
                 backup = _scratch_path(final, "bak")
                 os.replace(final, backup)
                 backups.append((backup, final))
@@ -412,7 +413,7 @@ def _publish(files: list[tuple[Path, bytes]], overwrite: bool) -> None:
             except OSError:
                 stuck.append(str(backup))
         if stuck and isinstance(error, Exception):
-            raise OSError("Сбой записи; прежние файлы пары сохранены под именами: " + ", ".join(stuck)) from error
+            raise OSError(tr("Сбой записи; прежние файлы пары сохранены под именами: ") + ", ".join(stuck)) from error
         raise
     for backup, _ in backups:
         _discard(backup)

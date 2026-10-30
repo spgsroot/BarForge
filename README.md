@@ -125,14 +125,7 @@ Translations live in `barforge/locales/en.json`. The Russian source strings in t
 
 ### Caption templates
 
-In the ready-made templates `{color}` is replaced by the chosen bar color. Besides **General** and **No color** there are four types:
-
-| Type | Template |
-|---|---|
-| Penis | `rustnomiconUncensor. Remove the {color} censor bars, penis, close-up` |
-| Vagina | `rustnomiconUncensor. Remove the {color} censor bars, vagina, close-up` |
-| Anus | `rustnomiconUncensor. Remove the {color} censor bars, anus, close-up` |
-| Penetration | `rustnomiconUncensor. Remove the {color} censor bars, penetration, penis penetrating vagina` |
+The **Caption** tab offers a drop-down of ready-made caption templates. A template has the form `rustnomiconUncensor. Remove the {color} censor bars`, optionally followed by a short qualifier; `{color}` is replaced by the chosen bar color (`white` or `black`). Besides the **General** and **No color** variants there are four qualified variants. The exact texts are defined in `CAPTION_TEMPLATES` in `barforge/models.py`.
 
 Changing the color keeps the type of a ready-made caption instead of resetting it to the general one. A `{color}` typed by hand is also substituted into the saved text, while the editor itself is not rewritten. Other curly braces are not interpreted, and custom text without `{color}` is never changed automatically.
 
@@ -200,7 +193,7 @@ Memory holds the current image and its display; the other documents carry metada
 
 ## Local neural auto-censor
 
-It needs no Grok, no API key, no GPU and sends no image anywhere. Two ONNX models of about 126 MB in total ship in `barforge/assets/`. A specialized model for drawn images produces the anatomical regions; the broad genital boxes of the second model are **never used for painting**. Its `make_love` scenes serve only as context for refinement, and the anus is enabled by a separate option. GrabCut separates the foreground inside an anatomical prediction; bars are confined to its outline, concavities and large background holes. The models run through ONNX Runtime on the CPU and are reused between analyses.
+It needs no Grok, no API key, no GPU and sends no image anywhere. Two ONNX models of about 126 MB in total ship in `barforge/assets/`. A specialized model for drawn images produces the region predictions; the broad boxes of the second model are **never used for painting**. Its scene predictions serve only as context for refinement, and one additional region class is enabled by a separate option. GrabCut separates the foreground inside a region prediction; bars are confined to its outline, concavities and large background holes. The models run through ONNX Runtime on the CPU and are reused between analyses.
 
 1. Open an image, select a crop if needed and click **Neural auto-censor…**.
 2. Choose white or black, the **base thickness** in pixels and the spacing. **Across the organ (auto angle)** is on by default: every detected region gets its own angle. **Random thickness ±** in the main window and **Deviation from / to** in the dialogs set the range of automatic lines: **3–8 px** by default with a random sign. Whole numbers **0–64 px** are allowed; **0 / 0** turns the variation off and **4 / 4** gives **±4 px**. If the bounds cross, the other field follows. The manual brush and manual bars use the exact thickness without randomization, and the geometric **+ Center** is not randomized either. Margin and scale change the placement zone; the anatomy and scene-hint thresholds are set separately.
